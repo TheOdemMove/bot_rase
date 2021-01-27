@@ -68,29 +68,21 @@ def work(message):
             bot.send_message(message.from_user.id, "Введите ваше имя: ")
             bot.register_next_step_handler(message, get_name);
         else:
-            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас - используйте команду /start')
+            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
     elif check == 2:
         bot.send_message(message.from_user.id, "Вы уже подали заявку на регистрацию, пожалуйста, ожидайте ее одоборения.")
     elif check == 3:
         if message.text == 'Мои автомобили':
             get_car_user(message)
-        elif message.text == 'Добавить автомобиль':
-            carbut = types.ReplyKeyboardRemove()
-            bot.send_message(message.from_user.id, "Что бы добавить автомобиль в гараж, следуйте дальнейшим инструкциям бота.", reply_markup=carbut)
-            ownerid = message.from_user.id
-            bot.send_message(message.from_user.id, "Введите название марки авто: ")
-            bot.register_next_step_handler(message, get_car_name)
+        else:
+            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
     elif check == 4:
         if message.text == 'Панель администратора':
-            pass
+            bot.send_message(message.from_user.id, "Используйте меню, для выбора действий.", reply_markup=default_menu_admin_action())
         elif message.text == 'Мои автомобили':
             get_car_user(message)
-        # elif message.text == 'Добавить автомобиль':
-        #     carbut = types.ReplyKeyboardRemove()
-        #     bot.send_message(message.from_user.id, "Что бы добавить автомобиль в гараж, следуйте дальнейшим инструкциям бота.", reply_markup=carbut)
-        #     ownerid = message.from_user.id
-        #     bot.send_message(message.from_user.id, "Введите название марки авто: ")
-        #     bot.register_next_step_handler(message, get_car_name)
+        else:
+            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
 
 
 def get_car_user(message):
@@ -106,6 +98,7 @@ def get_car_user(message):
         mycar.row(str(num[2]))
         count += 1
     mycar.row('Добавить автомобиль')
+    mycar.row('<< Назад')
     if count == 0:
         check = check_reg(message.from_user.id)
         if check == 3:
@@ -134,11 +127,15 @@ def next_car_action(message):
     if check == 3:
         if message.text == "Добавить автомобиль":
             next_hop(message)
+        elif message.text == "<< Назад":
+            bot.send_message(message.from_user.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
         else:
             bot.send_message(message.from_user.id, "Car choise: {}".format(namecaraction), reply_markup=default_menu_user())
     elif check == 4:
         if message.text == "Добавить автомобиль":
             next_hop(message)
+        elif message.text == "<< Назад":
+            bot.send_message(message.from_user.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
         else:
             bot.send_message(message.from_user.id, "Car choise: {}".format(namecaraction), reply_markup=default_menu_admin())
 
@@ -315,6 +312,20 @@ def default_menu_user():
     carbut.row('Мой ТОП-10')
     carbut.row('Общий ТОП-10')
     return carbut
+
+def default_menu_admin_action():
+    carbut = telebot.types.ReplyKeyboardMarkup(True, True)
+    carbut.row('Cоздать гонку')
+    carbut.row('Отсосать')
+    carbut.row('Пойти нахуй')
+    return carbut
+
+def default_start_button():
+    carbut = telebot.types.ReplyKeyboardMarkup(True, True)
+    carbut.row('/start')
+    return carbut
+
+
 
 
 bot.polling(none_stop=True, timeout=500)
