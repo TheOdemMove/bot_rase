@@ -79,10 +79,15 @@ def work(message):
     elif check == 4:
         if message.text == 'Панель администратора':
             bot.send_message(message.from_user.id, "Используйте меню, для выбора действий.", reply_markup=default_menu_admin_action())
+            bot.register_next_step_handler(message, test);
         elif message.text == 'Мои автомобили':
             get_car_user(message)
         else:
             bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
+
+def test(message):
+    if message.text == "Выйди отсюда розбийнык":
+        bot.send_message(message.from_user.id, "Вы вернулись в панель администратора.", reply_markup=default_menu_admin())
 
 
 def get_car_user(message):
@@ -318,6 +323,7 @@ def default_menu_admin_action():
     carbut.row('Cоздать гонку')
     carbut.row('Отсосать')
     carbut.row('Пойти нахуй')
+    carbut.row('Выйди отсюда розбийнык')
     return carbut
 
 def default_start_button():
