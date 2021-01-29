@@ -2,17 +2,12 @@ import telebot
 from telebot import types
 import datetime
 import sqlite3
-import telebot_calendar
-from telebot_calendar import CallbackData
 from telebot.types import ReplyKeyboardRemove, CallbackQuery
 
 
 
 bot = telebot.TeleBot('1452247200:AAES4nlaN4zg6-J6ljkDssrcfJYpBVdw3sU')
 now = datetime.datetime.now()
-calendar_1 = CallbackData("calendar_1", "action", "year", "month", "day")
-ccalendar = False
-
 
 @bot.message_handler(commands=['start'])
 def phone(message):
@@ -68,7 +63,6 @@ def work(message):
     if check == 1:
         if message.text == 'Регистрация':
             ###
-            print(check)
             register = types.ReplyKeyboardRemove()
             ###
             bot.send_message(message.from_user.id, "Для того, что бы зарегистрироваться, следуйте дальнейшим инструкциям бота.", reply_markup=register)
@@ -81,16 +75,96 @@ def work(message):
     elif check == 3:
         if message.text == 'Мои автомобили':
             get_car_user(message)
+        elif message.text == 'Регистрация на мероприятие':
+            show_mp_menu(message)
         else:
-            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
+            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_user())
     elif check == 4:
         if message.text == 'Панель администратора':
             bot.send_message(message.from_user.id, "Используйте меню, для выбора действий.", reply_markup=default_menu_admin_action())
             bot.register_next_step_handler(message, admin_panel)
         elif message.text == 'Мои автомобили':
             get_car_user(message)
+        elif message.text == 'Регистрация на мероприятие':
+            show_mp_menu(message)
         else:
-            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
+            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_admin())
+
+
+def show_mp_menu(message):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+        cursor.execute("SELECT * FROM MP")
+        result = cursor.fetchall()
+        conn.commit()
+    if len(result) > 0:
+        mpbut = telebot.types.ReplyKeyboardMarkup(True, True)
+        if len(result) >= 19:
+            count = len(result)
+            count -= 10
+            count2 = 0
+            for num in result:
+                count2 += 1
+                if count2 > count:
+                    mpbut.row(' ID: {} | Name: {}\n Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
+        else:
+            for num in result:
+                mpbut.row(' ID: {} | Name: {}\n Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
+        mpbut.row('<< Назад')
+        bot.send_message(message.from_user.id, "Здесь отображены крайние 10 мероприятий, для регистрации на них, выберите мероприятие.", reply_markup=mpbut)
+        bot.register_next_step_handler(message, reg_user_mp)
+    else:
+        bot.send_message(message.from_user.id, "Простите, никаких мероприятий не запланировано в ближайшее время", reply_markup=mpbut)
+
+def reg_user_mp(message):
+    check = check_reg(message.from_user.id)
+    delbut = telebot.types.ReplyKeyboardRemove()
+    if message.text == "<< Назад":
+        if check == 3:
+            bot.send_message(message.from_user.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_message(message.from_user.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
+    else:
+        txt = message.text
+        x = txt.split(" ")
+        if len(x) >= 9:
+            car_user_mp(message, x)
+        else:
+            bot.send_message(message.from_user.id, "Не пойму вас, такой кнопки нету, попробуйте еще раз.", reply_markup=delbut)
+            show_mp_menu(message)
+
+def car_user_mp(message, x):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("SELECT * FROM Cars WHERE OwnerId={}".format(message.from_user.id))
+        conn.commit()
+        result = cursor.fetchall()
+    count = 0
+    mycar = telebot.types.ReplyKeyboardMarkup(True, True)
+    for num in result:
+        mycar.row(str(num[2]))
+        count +=1
+    if count == 0:
+        check = check_reg(message.from_user.id)
+        if check == 3:
+            bot.send_message(message.from_user.id, "В вашем гараже еще нет автомобилей. \nЧто-бы добавить, воспользуйтесь вкладкой: \n*'Мои автомобили'*.", parse_mode="Markdown", reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_message(message.from_user.id, "В вашем гараже еще нет автомобилей. \nЧто-бы добавить, воспользуйтесь вкладкой: \n*'Мои автомобили'*.", parse_mode="Markdown", reply_markup=default_menu_admin())
+    else:
+        bot.send_message(message.from_user.id, "В вашем гараже сейчас {} автомобиля(ей).\n\nВыберите авто на котором будете участвовать в гонке.".format(str(count)), parse_mode="Markdown", reply_markup=mycar)
+        bot.register_next_step_handler(message, next_car_user_mp, x)
+
+
+def next_car_user_mp(message, x):
+    check = check_reg(message.from_user.id)
+    ncar = message.text
+    if check == 3:
+        bot.send_message(message.from_user.id, "Номер: *№{}*\nНазвание: *{}*Вы успешно зарегистрированы на гонку.\nДата проведения: *{}*\nВремя проведения: *{}*\nАвто: *{}*".format(x[1], x[4], x[6], x[9], ncar), reply_markup=default_menu_user(), parse_mode="Markdown")
+    elif check == 4:
+        bot.send_message(message.from_user.id, "Номер: *№{}*\nНазвание: *{}*Вы успешно зарегистрированы на гонку.\nДата проведения: *{}*\nВремя проведения: *{}*\nАвто: *{}*".format(x[1], x[4], x[6], x[9], ncar), reply_markup=default_menu_admin(), parse_mode="Markdown")
+
 
 def admin_panel(message):
     if message.text == 'Управление мероприятиями':
@@ -108,16 +182,26 @@ def menu_mp(message):
     elif message.text == 'Список мероприятий':
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
-            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
             cursor.execute("SELECT * FROM MP")
             result = cursor.fetchall()
             conn.commit()
+
         if len(result) > 0:
             mpbut = telebot.types.ReplyKeyboardMarkup(True, True)
-            for num in result:
-                mpbut.row('ID: {} | Name: {}\nDate: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
+            if len(result) >= 19:
+                count = len(result)
+                count -= 10
+                count2 = 0
+                for num in result:
+                    count2 += 1
+                    if count2 > count:
+                        mpbut.row(' ID: {} | Name: {}\n Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
+            else:
+                for num in result:
+                    mpbut.row(' ID: {} | Name: {}\n Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
             mpbut.row('<< Назад')
-            bot.send_message(message.from_user.id, "Здесь отображены крайние 10 мероприятий, для добавления результатов гонок выберите мероприятие.", reply_markup=mpbut)
+            bot.send_message(message.from_user.id,"Здесь отображены крайние 10 мероприятий, для добавления результатов гонок выберите мероприятие.", reply_markup=mpbut)
             bot.register_next_step_handler(message, view_mp)
         else:
             bot.send_message(message.from_user.id, "Похоже что никаких мероприятий не проводиться.", reply_markup=default_mp_action())
@@ -133,50 +217,46 @@ def view_mp(message):
     if message.text == '<< Назад':
         bot.send_message(message.from_user.id, 'Вы вернулись в меню управления мероприятиями.', reply_markup=default_mp_action())
     else:
+        txt = message.text
+        x = txt.split(" ")
         bot.send_message(message.from_user.id, 'Окей, ты выбрал вот это: \n{}'.format(message.text), reply_markup=default_mp_action())
     bot.register_next_step_handler(message, menu_mp)
 
 def add_mp(message):
-    global mp_name
     mp_name = message.text
     bot.send_message(message.from_user.id, "Укажите дату проведения\n(пример 29.01.2021): ")
-    bot.register_next_step_handler(message, add_mp_date)
+    bot.register_next_step_handler(message, add_mp_date, mp_name)
 
-def add_mp_date(message):
-    global mp_date
+def add_mp_date(message, mp_name):
     mp_date = message.text
     bot.send_message(message.from_user.id, "Укажите время проведения\n(например - 15:00): ")
-    bot.register_next_step_handler(message, add_mp_time)
+    bot.register_next_step_handler(message, add_mp_time, mp_name, mp_date)
 
-def add_mp_time(message):
-    global mp_time
+def add_mp_time(message, mp_name, mp_date):
     mp_time = message.text
     bot.send_message(message.from_user.id, "Укажите погодные условия: ")
-    bot.register_next_step_handler(message, add_mp_weather)
+    bot.register_next_step_handler(message, add_mp_weather, mp_name, mp_date, mp_time)
 
-def add_mp_weather(message):
-    global mp_weather
+def add_mp_weather(message, mp_name, mp_date, mp_time):
     mp_weather = message.text
     bot.send_message(message.from_user.id, "Укажите температуру воздуха: ")
-    bot.register_next_step_handler(message, add_mp_temp)
+    bot.register_next_step_handler(message, add_mp_temp, mp_name, mp_date, mp_time, mp_weather)
 
-def add_mp_temp(message):
-    global mp_temp
+def add_mp_temp(message, mp_name, mp_date, mp_time, mp_weather):
     mp_temp = message.text
     bot.send_message(message.from_user.id, "Укажите количество участников: ")
-    bot.register_next_step_handler(message, add_mp_member)
+    bot.register_next_step_handler(message, add_mp_member, mp_name, mp_date, mp_time, mp_weather, mp_temp)
 
-def add_mp_member(message):
-    global mp_member
+def add_mp_member(message, mp_name, mp_date, mp_time, mp_weather, mp_temp):
     mp_member = message.text
-    insert_sql_mp(message)
+    insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
 
-def insert_sql_mp(message):
+def insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member):
     create_mp = "Мероприятие *'{}'*\nуспешно создано.\n*Дата проведения:* {}\n*Время проведения:* {}\n*Погода:* {}\n*Температура:* {}\n*Макс. кол-во участников:* {}\n".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL)")
-        cursor.execute("INSERT INTO MP (MpName, MpDate, MpTime, MpWeather, MpTemp, MpMember) values ('{}', '{}', '{}', '{}', '{}', '{}')".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member))
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+        cursor.execute("INSERT INTO MP (MpName, MpDate, MpTime, MpWeather, MpTemp, MpMember, MpMemberMax) values ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member, 0))
         conn.commit()
     bot.send_message(message.from_user.id, create_mp, parse_mode="Markdown", reply_markup=default_mp_action())
     bot.register_next_step_handler(message, menu_mp)
@@ -212,10 +292,9 @@ def get_car_user(message):
 def next_hop(message):
     carbut = types.ReplyKeyboardRemove()
     bot.send_message(message.from_user.id, "Что бы добавить автомобиль в гараж, следуйте дальнейшим инструкциям бота.", reply_markup=carbut)
-    global ownerid
     ownerid = message.from_user.id
     bot.send_message(message.from_user.id, "Введите название марки авто: ")
-    bot.register_next_step_handler(message, get_car_name)
+    bot.register_next_step_handler(message, get_car_name, ownerid)
 
 
 def next_car_action(message):
@@ -275,53 +354,46 @@ def get_mobile_phone(message):
 
 ######### the end register
 
-def get_car_name(message):
-    global auto
+def get_car_name(message, ownerid):
     auto = message.text
     bot.send_message(message.from_user.id, 'Введите автомобильный номер: ')
-    bot.register_next_step_handler(message, get_car_regplate)
+    bot.register_next_step_handler(message, get_car_regplate, ownerid, auto)
 
-def get_car_regplate(message):
-    global regplate
+def get_car_regplate(message, ownerid, auto):
     regplate = message.text
     bot.send_message(message.from_user.id, 'Введите тип шин: ')
-    bot.register_next_step_handler(message, get_car_tyres)
+    bot.register_next_step_handler(message, get_car_tyres, ownerid, auto, regplate)
 
-def get_car_tyres(message):
-    global tyres
+def get_car_tyres(message, ownerid, auto, regplate):
     tyres = message.text
     bot.send_message(message.from_user.id, 'Введите количество лошадиных сил двигателя: ')
-    bot.register_next_step_handler(message, get_car_hp)
+    bot.register_next_step_handler(message, get_car_hp, ownerid, auto, regplate, tyres)
 
-def get_car_hp(message):
-    global hp
+def get_car_hp(message, ownerid, auto, regplate, tyres):
     hp = message.text
     bot.send_message(message.from_user.id, 'Введите вес авто в килогараммах: ')
-    bot.register_next_step_handler(message, get_car_weight)
+    bot.register_next_step_handler(message, get_car_weight, ownerid, auto, regplate, tyres, hp)
 
-def get_car_weight(message):
-    global weight
+def get_car_weight(message, ownerid, auto, regplate, tyres, hp):
     weight = message.text
     tranv = telebot.types.ReplyKeyboardMarkup(True, True)
     tranv.row('Бензиновый')
     tranv.row('Дизельный')
     tranv.row('Электро')
     bot.send_message(message.from_user.id, 'Выберите тип двигателя: ', reply_markup=tranv)
-    bot.register_next_step_handler(message, get_car_unit)
+    bot.register_next_step_handler(message, get_car_unit, ownerid, auto, regplate, tyres, hp, weight)
 
-def get_car_unit(message):
-    global drive_unit
+def get_car_unit(message, ownerid, auto, regplate, tyres, hp, weight):
     drive_unit = message.text
     tranv = telebot.types.ReplyKeyboardMarkup(True, True)
     tranv.row('Полный')
     tranv.row('Передний')
     tranv.row('Задний')
     bot.send_message(message.from_user.id, 'Выберите тип привода: ', reply_markup=tranv)
-    bot.register_next_step_handler(message, get_car_engine)
+    bot.register_next_step_handler(message, get_car_engine, ownerid, auto, regplate, tyres, hp, weight, drive_unit)
 
 
-def get_car_engine(message):
-    global engine
+def get_car_engine(message, ownerid, auto, regplate, tyres, hp, weight, drive_unit):
     engine = message.text
     #
     tranv = telebot.types.ReplyKeyboardMarkup(True, True)
@@ -330,17 +402,16 @@ def get_car_engine(message):
     tranv.row('Робот')
     #
     bot.send_message(message.from_user.id, 'Укажите вид трансмиссии: ', reply_markup=tranv)
-    bot.register_next_step_handler(message, get_car_trans)
+    bot.register_next_step_handler(message, get_car_trans, ownerid, auto, regplate, tyres, hp, weight, drive_unit, engine)
 
-def get_car_trans(message):
-    global trans
+def get_car_trans(message, ownerid, auto, regplate, tyres, hp, weight, drive_unit, engine):
     trans = message.text
 
     ##
     check = check_reg(message.from_user.id)
     ##
     try:
-        insert_sql_car()
+        insert_sql_car(ownerid, auto, regplate, tyres, hp, weight, drive_unit, engine, trans)
         if check == 3:
             bot.send_message(message.from_user.id, 'Автомобиль «{}» успешно добавлен в ваш гараж.'.format(auto), reply_markup=default_menu_user())
         elif check == 4:
@@ -370,7 +441,7 @@ def insert_sql_new():
     except:
         pass
 
-def insert_sql_car():
+def insert_sql_car(ownerid, auto, regplate, tyres, hp, weight, drive_unit, engine, trans):
     try:
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
@@ -398,6 +469,7 @@ def admins_send():
 def default_menu_admin():
     carbut = telebot.types.ReplyKeyboardMarkup(True, True)
     carbut.row('Панель администратора')
+    carbut.row('Регистрация на мероприятие')
     carbut.row('Мои автомобили')
     carbut.row('Мой ТОП-10')
     carbut.row('Общий ТОП-10')
@@ -405,6 +477,7 @@ def default_menu_admin():
 
 def default_menu_user():
     carbut = telebot.types.ReplyKeyboardMarkup(True, True)
+    carbut.row('Регистрация на мероприятие')
     carbut.row('Мои автомобили')
     carbut.row('Мой ТОП-10')
     carbut.row('Общий ТОП-10')
@@ -448,15 +521,7 @@ def get_usr():
 
 
 
-# @bot.callback_query_handler(func=lambda call: True)
-# def query_handler(call):
-#     bot.answer_callback_query(callback_query_id=call.id, text='Права пользователя были изменены.')
-#     answer = ''
-#     if call.data == '10':
-#         answer = 'Регистрация пользователя была одобрена.'
-#     elif call.data == '11':
-#         answer = 'Регистрация пользователя была отклонена.'
-#     bot.send_message(call.message.chat.id, answer)
 
 
-bot.polling(none_stop=True, timeout=500)
+if __name__ == '__main__':
+    bot.polling(none_stop=True, timeout=500)
