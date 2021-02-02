@@ -632,15 +632,22 @@ def inlin(call_b):
         else:
             # если все места заняты
             bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
-            bot.send_message(call_b.message.chat.id,"(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.\nПричина: *Нет мест*".format(x[8],x[11],x[5]), parse_mode="Markdown")
-            try:
-                bot.send_message(x[5],"Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*отклонена* из-за нехватки мест.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
-            except:
-                pass
+            bot.send_message(call_b.message.chat.id,"(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.\nПричина: *Нет мест*".format(x[8],x[11],x[5]), parse_mode="Markdown")
             ####
+            with sqlite3.connect("static/database/main.sqlite") as conn:
+                cursor = conn.cursor()
+                cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+                cursor.execute("SELECT * FROM MP_Result WHERE (UStatus=0) AND MpId={}".format(x[14]))
+                kick = cursor.fetchall()
+                cursor.execute("DELETE FROM MP_Result WHERE (UStatus=0) AND MpId={}".format(x[14]))
+                conn.commit()
+            for nim in kick:
+                try:
+                    bot.send_message(nim[2], "Здравствуйте, к сожалению все места на гонку: \n*№{} {}*Время проведения: *{} {}*\n*закончились*, регистрируйтесь на другую.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
+                except:
+                    pass
+            #####
 
-
-        ##########
     elif call_b.data == '4':
         bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
         bot.send_message(call_b.message.chat.id, "(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.".format(x[8], x[11], x[5]), parse_mode="Markdown")
@@ -656,8 +663,7 @@ def inlin(call_b):
             pass
 
         try:
-            bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*отклонена* администратором.".format(x[14], x[16], x[19], x[23]),
-                             parse_mode="Markdown")
+            bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*отклонена* администратором.".format(x[14], x[16], x[19], x[23]),parse_mode="Markdown")
         except:
             pass
 
