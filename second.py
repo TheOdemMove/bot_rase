@@ -6,7 +6,7 @@ from telebot.types import ReplyKeyboardRemove, CallbackQuery
 
 
 
-bot = telebot.TeleBot('1452247200:AAES4nlaN4zg6-J6ljkDssrcfJYpBVdw3sU')
+bot = telebot.TeleBot('1173276637:AAGcELhOEt6KULo7GWYNohCXWw2YtvwqXUE')
 now = datetime.datetime.now()
 
 @bot.message_handler(commands=['start'])
@@ -160,10 +160,54 @@ def car_user_mp(message, x):
 def next_car_user_mp(message, x):
     check = check_reg(message.from_user.id)
     ncar = message.text
-    if check == 3:
-        bot.send_message(message.from_user.id, "Номер: *№{}*\nНазвание: *{}*Вы успешно зарегистрированы на гонку.\nДата проведения: *{}*\nВремя проведения: *{}*\nАвто: *{}*".format(x[1], x[4], x[6], x[9], ncar), reply_markup=default_menu_user(), parse_mode="Markdown")
-    elif check == 4:
-        bot.send_message(message.from_user.id, "Номер: *№{}*\nНазвание: *{}*Вы успешно зарегистрированы на гонку.\nДата проведения: *{}*\nВремя проведения: *{}*\nАвто: *{}*".format(x[1], x[4], x[6], x[9], ncar), reply_markup=default_menu_admin(), parse_mode="Markdown")
+
+    ####
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM MP_Result WHERE (MpId={}) AND (MpUserId={})".format(x[1], message.from_user.id))
+        result_info = cursor.fetchone()
+        conn.commit()
+    ####
+    if result_info != None:
+        if check == 3:
+            bot.send_message(message.from_user.id, "Вы уже подали заявку на участие в данной гонке, ожидайте ответа администратора.", reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_message(message.from_user.id, "Вы уже подали заявку на участие в данной гонке, ожидайте ответа администратора.", reply_markup=default_menu_admin())
+    else:
+        insert_result_sql(message, x, ncar)
+        if check == 3:
+            bot.send_message(message.from_user.id, "Номер: *№{}*\nНазвание: *{}*Вы успешно зарегистрированы на гонку.\nДата проведения: *{}*\nВремя проведения: *{}*\nАвто: *{}*".format(x[1], x[4], x[6], x[9], ncar), reply_markup=default_menu_user(), parse_mode="Markdown")
+        elif check == 4:
+            bot.send_message(message.from_user.id, "Номер: *№{}*\nНазвание: *{}*Вы успешно зарегистрированы на гонку.\nДата проведения: *{}*\nВремя проведения: *{}*\nАвто: *{}*".format(x[1], x[4], x[6], x[9], ncar), reply_markup=default_menu_admin(), parse_mode="Markdown")
+
+def insert_result_sql(message, x, ncar):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("INSERT INTO MP_Result (MpId, MpUserId, Result, UserCar, Ustatus) values ('{}', '{}', 100000.000001, '{}', 0)".format(x[1], message.from_user.id, ncar))
+        conn.commit()
+    admins_send_mp_reg(message, x, ncar)
+
+def admins_send_mp_reg(message, x, ncar):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Users WHERE Status=4")
+        result = cursor.fetchall()
+        ###
+        cursor.execute("SELECT * FROM Users WHERE TGUserId={}".format(message.from_user.id))
+        uinfo = cursor.fetchone()
+        ###
+        conn.commit()
+
+    key = types.InlineKeyboardMarkup()
+    but_1 = types.InlineKeyboardButton(text="Одобрить", callback_data="3")
+    but_2 = types.InlineKeyboardButton(text="Отклонить", callback_data="4")
+    key.add(but_1, but_2)
+    for num in result:
+        try:
+            bot.send_message(num[3], "\[Запрос регистрации на гонку]\n TelegramChatID: *{}* \n Имя: *{}* \n Фамилия: *{}* \n МП: *{} - {}* Дата проведения: *{}* \n Время проведения: *{}* \n Авто: *{}*".format(message.from_user.id, uinfo[1], uinfo[2], x[1], x[4], x[6], x[9], ncar), reply_markup=key, parse_mode="Markdown")
+        except:
+            pass
 
 
 def admin_panel(message):
@@ -320,33 +364,29 @@ def next_car_action(message):
 ### блок общения для регистрации
 #####
 def get_name(message):
-    global name
-    global chatid
-    global datatime
     datatime = now.strftime("%d-%m-%Y %H:%M")
     chatid = message.from_user.id
     name = message.text
     bot.send_message(message.from_user.id, 'Введите вашу фамилию: ')
-    bot.register_next_step_handler(message, get_surname)
+    bot.register_next_step_handler(message, get_surname, datatime, chatid, name)
 
-def get_surname(message):
-    global surname
+def get_surname(message, datatime, chatid, name):
     surname = message.text
     keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
     button_phone = types.KeyboardButton(text="Отправить номер телефона", request_contact=True)
     keyboard.add(button_phone)
     bot.send_message(message.from_user.id, 'Введите ваш номер телефона: ', reply_markup=keyboard)
-    bot.register_next_step_handler(message, get_mobile_phone)
+    bot.register_next_step_handler(message, get_mobile_phone, datatime, chatid, name, surname)
 
-def get_mobile_phone(message):
+def get_mobile_phone(message, datatime, chatid, name, surname):
     global mobilephone
     if message.contact is not None:
         mobilephone = message.contact.phone_number
     else:
         mobilephone = '380000000000'
-    insert_sql_new()
+    insert_sql_new(chatid, name, surname, mobilephone, datatime)
     keyboard = types.ReplyKeyboardRemove()
-    admins_send()
+    admins_send(chatid, name, surname, mobilephone, datatime)
     try:
         bot.send_message(message.from_user.id, "Регистрация завершена, ожидайте одобрения вашей заявки администратором.", reply_markup=keyboard)
     except:
@@ -431,7 +471,7 @@ def get_car_trans(message, ownerid, auto, regplate, tyres, hp, weight, drive_uni
 
 
 
-def insert_sql_new():
+def insert_sql_new(chatid, name, surname, mobilephone, datatime):
     try:
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
@@ -453,15 +493,21 @@ def insert_sql_car(ownerid, auto, regplate, tyres, hp, weight, drive_unit, engin
 
 
 
-def admins_send():
+def admins_send(chatid, name, surname, mobilephone, datatime):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM Users WHERE Status=4")
         result = cursor.fetchall()
         conn.commit()
+
+    key = types.InlineKeyboardMarkup()
+    but_1 = types.InlineKeyboardButton(text="Одобрить", callback_data="1")
+    but_2 = types.InlineKeyboardButton(text="Отклонить", callback_data="2")
+    key.add(but_1, but_2)
+
     for num in result:
         try:
-            bot.send_message(num[3], "[Запрос регистрации]\nTelegramChatID: {}\nИмя: {}\nФамилия: {}\nМобильный: {}\nДата регистрации: {}".format(chatid, name, surname, mobilephone, datatime))
+            bot.send_message(num[3], "[Запрос регистрации]\n TelegramChatID: {} \n Имя: {} \n Фамилия: {} \n Мобильный: {} \n Дата регистрации: {}".format(chatid, name, surname, mobilephone, datatime), reply_markup=key)
         except:
             pass
 
@@ -505,8 +551,13 @@ def default_mp_action():
 
 def testov(message):
     result = get_usr()
+    key = types.InlineKeyboardMarkup()
+    but_1 = types.InlineKeyboardButton(text="Одобрить", callback_data="1")
+    but_2 = types.InlineKeyboardButton(text="Отклонить", callback_data="2")
+    key.add(but_1, but_2)
     for num in result:
-        bot.send_message(message.chat.id, text="[Запрос регистрации]\nTGUserId: {}\nИмя, Фамилия: {} {}\nТелефон: {}\nДата регистрации: {}\n\n".format(num[3], num[1], num[2], num[4], num[5]), reply_markup=default_menu_admin_action())
+        bot.send_message(message.chat.id, text="[Запрос регистрации]\n TelegramChatID: {} \n Имя: {} \n Фамилия: {} \n Мобильный: {} \n Дата регистрации: {}".format(num[3], num[1], num[2], num[4], num[5]), reply_markup=key)
+    bot.send_message(message.chat.id, "Вы находитесь в панели администратора.", reply_markup=default_menu_admin_action())
     bot.register_next_step_handler(message, admin_panel)
 
 
@@ -521,6 +572,104 @@ def get_usr():
 
 
 
+@bot.callback_query_handler(func=lambda call_b:True) ##### inline accept register user
+def inlin(call_b):
+    x = call_b.message.text.split(" ")
+    if call_b.data == '1':
+        bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+        bot.send_message(call_b.message.chat.id, "(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на регистрацию была *ОДОБРЕНА*.".format(x[6], x[9],  x[3]), parse_mode="Markdown")
+        try:
+            update_sql_reg(1, x)
+        except:
+            pass
+
+        try:
+            bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *одобрена* администратором.", parse_mode="Markdown")
+        except:
+            pass
+    elif call_b.data == '2':
+        bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+        bot.send_message(call_b.message.chat.id, "(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на регистрацию была *ОТКЛОНЕНА*.".format(x[6], x[9],  x[3]), parse_mode="Markdown")
+        try:
+            update_sql_reg(2, x)
+        except:
+            pass
+
+        try:
+            bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *отклонена* администратором.", parse_mode="Markdown")
+        except:
+            pass
+
+    elif call_b.data == '3':
+        ######
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+            cursor.execute("SELECT MpMember, MpMemberMax FROM MP WHERE Id={}".format(x[14]))
+            result = cursor.fetchone()
+            conn.commit()
+        if result[1] < result[0]:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id,"(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОДОБРЕНА*.".format(x[8], x[11], x[5]), parse_mode="Markdown")
+            #######
+            try:
+                with sqlite3.connect("static/database/main.sqlite") as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+                    cursor.execute("UPDATE MP_Result SET UStatus=1 WHERE (MpId={}) AND (MpUserId={})".format(x[14], x[5]))
+                    #
+                    cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+                    mmax = int(result[1]) + 1
+                    cursor.execute("Update MP SET MpMemberMax={} WHERE Id={}".format(mmax, x[14]))
+                    conn.commit()
+            except:
+                pass
+            ########
+            try:
+                bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*одобрена* администратором.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
+            except:
+                pass
+        else:
+            # если все места заняты
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id,"(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.\nПричина: *Нет мест*".format(x[8],x[11],x[5]), parse_mode="Markdown")
+            try:
+                bot.send_message(x[5],"Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*отклонена* из-за нехватки мест.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
+            except:
+                pass
+            ####
+
+
+        ##########
+    elif call_b.data == '4':
+        bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+        bot.send_message(call_b.message.chat.id, "(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.".format(x[8], x[11], x[5]), parse_mode="Markdown")
+        try:
+            ##
+            with sqlite3.connect("static/database/main.sqlite") as conn:
+                cursor = conn.cursor()
+                cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+                cursor.execute("DELETE FROM MP_Result WHERE (MpId={}) AND (MpUserId={})".format(x[14],x[5]))
+                conn.commit()
+            ##
+        except:
+            pass
+
+        try:
+            bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*отклонена* администратором.".format(x[14], x[16], x[19], x[23]),
+                             parse_mode="Markdown")
+        except:
+            pass
+
+def update_sql_reg(y, x):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+        if y == 1:
+            cursor.execute("UPDATE Users SET Status=3 WHERE TGUserId={}".format(x[3]))
+        elif y == 2:
+            cursor.execute("UPDATE Users SET Status=1 WHERE TGUserId={}".format(x[3]))
+        conn.commit()
 
 
 if __name__ == '__main__':
