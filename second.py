@@ -11,19 +11,21 @@ now = datetime.datetime.now()
 
 @bot.message_handler(commands=['start'])
 def phone(message):
-    check = check_reg(message.from_user.id)
-    if check == 1:
-        register = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-        button_phone = types.KeyboardButton(text="Регистрация")
-        register.add(button_phone)
-        bot.send_message(message.from_user.id, "Здравствуйте, {}, для регистрации используйте кнопку 'Регистрация'. ".format(str(message.from_user.first_name)), reply_markup=register)
-    elif check == 2:
-        bot.send_message(message.from_user.id, "Вы уже подали заявку на регистрацию, пожалуйста, ожидайте ее одоборения.")
-    elif check == 3:
-        bot.send_message(message.from_user.id, "Используйте меню для выбора функций.", reply_markup=default_menu_user())
-    elif check == 4:
-        bot.send_message(message.from_user.id, "[You Admin] Используйте меню для выбора функций. ", reply_markup=default_menu_admin())
-
+    if message.chat.type == 'private':
+        check = check_reg(message.from_user.id)
+        if check == 1:
+            register = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+            button_phone = types.KeyboardButton(text="Регистрация")
+            register.add(button_phone)
+            bot.send_message(message.from_user.id, "Здравствуйте, {}, для регистрации используйте кнопку 'Регистрация'. ".format(str(message.from_user.first_name)), reply_markup=register)
+        elif check == 2:
+            bot.send_message(message.from_user.id, "Вы уже подали заявку на регистрацию, пожалуйста, ожидайте ее одоборения.")
+        elif check == 3:
+            bot.send_message(message.from_user.id, "Используйте меню для выбора функций.", reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_message(message.from_user.id, "[You Admin] Используйте меню для выбора функций. ", reply_markup=default_menu_admin())
+    else:
+        bot.send_message(message.chat.id, "Иди нахуй, в лс пиши.")
 
 
 
@@ -58,38 +60,37 @@ def check_reg(id):
 
 @bot.message_handler(content_types=['text'])
 def work(message):
-    global ownerid
-    check = check_reg(message.from_user.id)
-    if check == 1:
-        if message.text == 'Регистрация':
-            ###
-            register = types.ReplyKeyboardRemove()
-            ###
-            bot.send_message(message.from_user.id, "Для того, что бы зарегистрироваться, следуйте дальнейшим инструкциям бота.", reply_markup=register)
-            bot.send_message(message.from_user.id, "Введите ваше имя: ")
-            bot.register_next_step_handler(message, get_name)
-        else:
-            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
-    elif check == 2:
-        bot.send_message(message.from_user.id, "Вы уже подали заявку на регистрацию, пожалуйста, ожидайте ее одоборения.")
-    elif check == 3:
-        if message.text == 'Мои автомобили':
-            get_car_user(message)
-        elif message.text == 'Регистрация на мероприятие':
-            show_mp_menu(message)
-        else:
-            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_user())
-    elif check == 4:
-        if message.text == 'Панель администратора':
-            bot.send_message(message.from_user.id, "Используйте меню, для выбора действий.", reply_markup=default_menu_admin_action())
-            bot.register_next_step_handler(message, admin_panel)
-        elif message.text == 'Мои автомобили':
-            get_car_user(message)
-        elif message.text == 'Регистрация на мероприятие':
-            show_mp_menu(message)
-        else:
-            bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_admin())
-
+    if message.chat.type == 'private':
+        check = check_reg(message.from_user.id)
+        if check == 1:
+            if message.text == 'Регистрация':
+                ###
+                register = types.ReplyKeyboardRemove()
+                ###
+                bot.send_message(message.from_user.id, "Для того, что бы зарегистрироваться, следуйте дальнейшим инструкциям бота.", reply_markup=register)
+                bot.send_message(message.from_user.id, "Введите ваше имя: ")
+                bot.register_next_step_handler(message, get_name)
+            else:
+                bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте команду - /start', reply_markup=default_start_button())
+        elif check == 2:
+            bot.send_message(message.from_user.id, "Вы уже подали заявку на регистрацию, пожалуйста, ожидайте ее одоборения.")
+        elif check == 3:
+            if message.text == 'Мои автомобили':
+                get_car_user(message)
+            elif message.text == 'Регистрация на мероприятие':
+                show_mp_menu(message)
+            else:
+                bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_user())
+        elif check == 4:
+            if message.text == 'Панель администратора':
+                bot.send_message(message.from_user.id, "Используйте меню, для выбора действий.", reply_markup=default_menu_admin_action())
+                bot.register_next_step_handler(message, admin_panel)
+            elif message.text == 'Мои автомобили':
+                get_car_user(message)
+            elif message.text == 'Регистрация на мероприятие':
+                show_mp_menu(message)
+            else:
+                bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_admin())
 
 def show_mp_menu(message):
     with sqlite3.connect("static/database/main.sqlite") as conn:
@@ -337,7 +338,7 @@ def next_hop(message):
     carbut = types.ReplyKeyboardRemove()
     bot.send_message(message.from_user.id, "Что бы добавить автомобиль в гараж, следуйте дальнейшим инструкциям бота.", reply_markup=carbut)
     ownerid = message.from_user.id
-    bot.send_message(message.from_user.id, "Введите название марки авто: ")
+    bot.send_message(message.from_user.id, "Введите название марки авто и модель: ")
     bot.register_next_step_handler(message, get_car_name, ownerid)
 
 
@@ -379,7 +380,6 @@ def get_surname(message, datatime, chatid, name):
     bot.register_next_step_handler(message, get_mobile_phone, datatime, chatid, name, surname)
 
 def get_mobile_phone(message, datatime, chatid, name, surname):
-    global mobilephone
     if message.contact is not None:
         mobilephone = message.contact.phone_number
     else:
@@ -401,7 +401,7 @@ def get_car_name(message, ownerid):
 
 def get_car_regplate(message, ownerid, auto):
     regplate = message.text
-    bot.send_message(message.from_user.id, 'Введите тип шин: ')
+    bot.send_message(message.from_user.id, 'Введите название шин: ')
     bot.register_next_step_handler(message, get_car_tyres, ownerid, auto, regplate)
 
 def get_car_tyres(message, ownerid, auto, regplate):
@@ -679,4 +679,4 @@ def update_sql_reg(y, x):
 
 
 if __name__ == '__main__':
-    bot.polling(none_stop=True, timeout=500)
+    bot.polling(none_stop=True, timeout=100)
