@@ -2,12 +2,23 @@ import telebot
 from telebot import types
 import datetime
 import sqlite3
-from telebot.types import ReplyKeyboardRemove, CallbackQuery
+
+import urllib
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
 
 
 bot = telebot.TeleBot('1173276637:AAGcELhOEt6KULo7GWYNohCXWw2YtvwqXUE')
 now = datetime.datetime.now()
+
+@bot.message_handler(commands=['sos'])
+def sms(message):
+    if message.from_user.id == 487348303:
+        url = "https://cs7.pikabu.ru/post_img/big/2019/02/22/6/1550826762198328952.png"
+        img = BytesIO(urllib.request.urlopen(url).read())
+        #bot.send_message(-1001454102587, img)
+        bot.send_photo(-1001454102587, img)
 
 @bot.message_handler(commands=['start'])
 def phone(message):
@@ -79,6 +90,8 @@ def work(message):
                 get_car_user(message)
             elif message.text == 'Регистрация на мероприятие':
                 show_mp_menu(message)
+            elif message.text == 'Мой ТОП-10':
+                proba(message)
             else:
                 bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_user())
         elif check == 4:
@@ -91,6 +104,41 @@ def work(message):
                 show_mp_menu(message)
             else:
                 bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_admin())
+
+def proba(message):
+    check = check_reg(message.chat.id)
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("SELECT * FROM MP_Result WHERE (MpUserId={}) AND (Ustatus=1) ORDER BY Result LIMIT 10".format(message.chat.id))
+        conn.commit()
+    result = cursor.fetchall()
+    if len(result) != 0:
+        base = Image.open("static/img/top10.png").convert("RGBA")
+        txt = Image.new("RGBA", base.size, (255, 255, 255, 0))
+        fnt = ImageFont.truetype("arial.ttf", 30)
+        fnt2 = ImageFont.truetype("arial.ttf", 27)
+        d = ImageDraw.Draw(txt)
+        y = 210
+        for num in result:
+            # Машина, погода, привод, резина, время
+            #sms = "[Гонка №{}] Авто: {} | Привод: | Резина: | Результат: {}".format(num[1], num[4], num[3])
+            d.text((75, y), "{}".format(num[4]), font=fnt, fill=(255, 255, 255, 256))
+            d.text((420, y), "Полный", font=fnt, fill=(255, 255, 255, 256))
+            d.text((620, y), "Мокро", font=fnt, fill=(255, 255, 255, 256))
+            d.text((790, y), "Yokohama AD08R", font=fnt2, fill=(255, 255, 255, 256))
+            d.text((1080, y), "{}".format(num[3]), font=fnt, fill=(255, 255, 255, 256))
+            y += 74
+        out = Image.alpha_composite(base, txt)
+        if check == 3:
+            bot.send_photo(message.chat.id, out, reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_photo(message.chat.id, out, reply_markup=default_menu_admin())
+    else:
+        if check == 3:
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=default_menu_admin())
 
 def show_mp_menu(message):
     with sqlite3.connect("static/database/main.sqlite") as conn:
@@ -184,8 +232,8 @@ def next_car_user_mp(message, x):
 def insert_result_sql(message, x, ncar):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
-        cursor.execute("INSERT INTO MP_Result (MpId, MpUserId, Result, UserCar, Ustatus) values ('{}', '{}', 100000.000001, '{}', 0)".format(x[1], message.from_user.id, ncar))
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("INSERT INTO MP_Result (MpId, MpUserId, Result, UserCar, Ustatus) values ('{}', '{}', NULL, '{}', 0)".format(x[1], message.from_user.id, ncar))
         conn.commit()
     admins_send_mp_reg(message, x, ncar)
 
@@ -351,17 +399,43 @@ def next_car_action(message):
         elif message.text == "<< Назад":
             bot.send_message(message.from_user.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
         else:
-            bot.send_message(message.from_user.id, "Car choise: {}".format(namecaraction), reply_markup=default_menu_user())
+            caredit = telebot.types.ReplyKeyboardMarkup(True, True)
+            caredit.row("Редактировать данные")
+            caredit.row("Удалить автомобиль")
+            caredit.row("<< Назад ")
+            bot.send_message(message.from_user.id, "Вы выбрали: {}\nИспользуйте меню для выбора действий.".format(namecaraction), reply_markup=caredit)
+            bot.register_next_step_handler(message, car_edit_menu, namecaraction)
     elif check == 4:
         if message.text == "Добавить автомобиль":
             next_hop(message)
         elif message.text == "<< Назад":
             bot.send_message(message.from_user.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
         else:
-            bot.send_message(message.from_user.id, "Car choise: {}".format(namecaraction), reply_markup=default_menu_admin())
+            caredit = telebot.types.ReplyKeyboardMarkup(True, True)
+            caredit.row("Редактировать данные")
+            caredit.row("Удалить автомобиль")
+            caredit.row("<< Назад ")
+            bot.send_message(message.from_user.id, "Вы выбрали: *{}*\nИспользуйте меню для выбора действий.".format(namecaraction), reply_markup=caredit, parse_mode="Markdown")
+            bot.register_next_step_handler(message, car_edit_menu, namecaraction)
 
-
-
+def car_edit_menu(message, namecaraction):
+    if message.text == 'Редактировать данные':
+        print("edit")
+    elif message.text == 'Удалить автомобиль':
+        ##
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+            cursor.execute("DELETE FROM Cars WHERE OwnerId={} AND Auto='{}'".format(message.chat.id, namecaraction))
+            conn.commit()
+        ##
+        bot.send_message(message.chat.id, "Вы удалили авто: *{}*\nиз своего виртуального гаража.".format(namecaraction), parse_mode="Markdown")
+        get_car_user(message)
+    elif message.text == '<< Назад':
+        get_car_user(message)
+    else:
+        bot.send_message(message.chat.id, "Вы видимо ошиблись в выборе действия, попробуйте еще раз.")
+        get_car_user(message)
 ### блок общения для регистрации
 #####
 def get_name(message):
