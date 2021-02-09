@@ -12,14 +12,6 @@ from PIL import Image, ImageDraw, ImageFont
 bot = telebot.TeleBot('1173276637:AAGcELhOEt6KULo7GWYNohCXWw2YtvwqXUE')
 now = datetime.datetime.now()
 
-@bot.message_handler(commands=['sos'])
-def sms(message):
-    if message.from_user.id == 487348303:
-        url = "https://cs7.pikabu.ru/post_img/big/2019/02/22/6/1550826762198328952.png"
-        img = BytesIO(urllib.request.urlopen(url).read())
-        #bot.send_message(-1001454102587, img)
-        bot.send_photo(-1001454102587, img)
-
 @bot.message_handler(commands=['start'])
 def phone(message):
     if message.chat.type == 'private':
@@ -44,7 +36,7 @@ def check_reg(id):
     try:
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
-            cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
             cursor.execute("SELECT * FROM Users WHERE TGUserId={}".format(id))
             result = cursor.fetchone()
             conn.commit()
@@ -91,7 +83,9 @@ def work(message):
             elif message.text == 'Регистрация на мероприятие':
                 show_mp_menu(message)
             elif message.text == 'Мой ТОП-10':
-                proba(message)
+                top_race(message)
+            elif message.text == 'Общий ТОП-10':
+                all_top_race(message)
             else:
                 bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_user())
         elif check == 4:
@@ -102,11 +96,16 @@ def work(message):
                 get_car_user(message)
             elif message.text == 'Регистрация на мероприятие':
                 show_mp_menu(message)
+            elif message.text == 'Мой ТОП-10':
+                top_race(message)
+            elif message.text == 'Общий ТОП-10':
+                all_top_race(message)
             else:
                 bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_admin())
 
-def proba(message):
+def top_race(message):
     check = check_reg(message.chat.id)
+    delb = telebot.types.ReplyKeyboardRemove()
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
@@ -114,31 +113,180 @@ def proba(message):
         conn.commit()
     result = cursor.fetchall()
     if len(result) != 0:
-        base = Image.open("static/img/top10.png").convert("RGBA")
+        base = Image.open("static/img/pps2.png").convert("RGBA")
         txt = Image.new("RGBA", base.size, (255, 255, 255, 0))
         fnt = ImageFont.truetype("arial.ttf", 30)
         fnt2 = ImageFont.truetype("arial.ttf", 27)
         d = ImageDraw.Draw(txt)
-        y = 210
+        y = 270
+        count = 1
         for num in result:
-            # Машина, погода, привод, резина, время
-            #sms = "[Гонка №{}] Авто: {} | Привод: | Резина: | Результат: {}".format(num[1], num[4], num[3])
-            d.text((75, y), "{}".format(num[4]), font=fnt, fill=(255, 255, 255, 256))
-            d.text((420, y), "Полный", font=fnt, fill=(255, 255, 255, 256))
-            d.text((620, y), "Мокро", font=fnt, fill=(255, 255, 255, 256))
-            d.text((790, y), "Yokohama AD08R", font=fnt2, fill=(255, 255, 255, 256))
-            d.text((1080, y), "{}".format(num[3]), font=fnt, fill=(255, 255, 255, 256))
-            y += 74
+            if str(num[3]) != "None":
+                # id, name race, date, Машина, привод, покрытие, резина, время
+                count += 1
+                mpi = mpinfo(message, num[1])
+                d.text((85, y), "№{} {}".format(num[1], mpi[1]), font=fnt2, fill=(0, 0, 0, 256))
+                d.text((325, y), "{} {}".format(mpi[2], mpi[3]), font=fnt, fill=(0, 0, 0, 256))
+                if len(num[4]) > 15:
+                    count_c = 0
+                    str_ncar = ""
+                    for st in num[4]:
+                         count_c += 1
+                         str_ncar += str(st)
+                         if count_c == 19:
+                             str_ncar += '\n'
+
+                    d.text((590, y), "{}".format(str_ncar), font=fnt, fill=(0, 0, 0, 256))
+                else:
+                    d.text((590, y), "{}".format(num[4]), font=fnt, fill=(0, 0, 0, 256))
+                cari = carinfo(message, num[4])
+                d.text((935, y), "{}".format(cari[7]), font=fnt, fill=(0, 0, 0, 256))
+                d.text((1190, y), "{}".format(mpi[4]), font=fnt, fill=(0, 0, 0, 256))
+                d.text((1410, y), "{}".format(cari[4]), font=fnt2, fill=(0, 0, 0, 256))
+                d.text((1675, y), "{}".format(num[3]), font=fnt, fill=(0, 0, 0, 256))
+                y += 100
         out = Image.alpha_composite(base, txt)
         if check == 3:
-            bot.send_photo(message.chat.id, out, reply_markup=default_menu_user())
+            if count > 1:
+                #####
+                #####
+                bot.send_photo(message.chat.id, out, reply_markup=delb)
+                bot.send_message(message.chat.id, "Выше на фото отображены *10 лучших* ваших результатов.", reply_markup=default_menu_user(), parse_mode="Markdown")
+            else:
+                bot.send_message(message.chat.id, "Простите, результаты гонок не найдены, скорее всего их еще не внесли.", reply_markup=delb)
+                bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
         elif check == 4:
-            bot.send_photo(message.chat.id, out, reply_markup=default_menu_admin())
+            if count > 1:
+                bot.send_photo(message.chat.id, out, reply_markup=delb)
+                bot.send_message(message.chat.id, "Выше на фото отображены *10 лучших* ваших результатов.", reply_markup=default_menu_admin(), parse_mode="Markdown")
+            else:
+                bot.send_message(message.chat.id, "Простите, результаты гонок не найдены, скорее всего их еще не внесли.", reply_markup=delb)
+                bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
     else:
         if check == 3:
-            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=default_menu_user())
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=delb)
+            bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
         elif check == 4:
-            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=default_menu_admin())
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=delb)
+            bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
+
+def carinfo(message, carname):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("SELECT * FROM Cars WHERE OwnerId={} AND Auto='{}'".format(message.from_user.id, carname))
+        conn.commit()
+        car_info = cursor.fetchone()
+    if str(car_info) == 'None':
+        car_info = ('NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND')
+    return car_info
+
+def carinfo_all(chid, carname):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("SELECT * FROM Cars WHERE OwnerId={} AND Auto='{}'".format(chid, carname))
+        conn.commit()
+        car_info = cursor.fetchone()
+    if str(car_info) == 'None':
+        car_info = ('NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND')
+    return car_info
+
+
+def mpinfo(message, id):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+        cursor.execute("SELECT * FROM MP WHERE Id={}".format(id))
+        conn.commit()
+        mp_info = cursor.fetchone()
+    if str(mp_info) == 'None':
+        mp_info = ('NOT\nFOUND', 'NOT\nFOUND',  'NOT\nFOUND',  'NOT\nFOUND',  'NOT\nFOUND',  'NOT\nFOUND',  'NOT\nFOUND',  'NOT\nFOUND')
+    return mp_info
+
+
+
+def all_top_race(message):
+    check = check_reg(message.chat.id)
+    delb = telebot.types.ReplyKeyboardRemove()
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("SELECT * FROM MP_Result WHERE Ustatus=1 ORDER BY Result LIMIT 10")
+        conn.commit()
+    result = cursor.fetchall()
+    if len(result) != 0:
+        base = Image.open("static/img/top10all.png").convert("RGBA")
+        txt = Image.new("RGBA", base.size, (255, 255, 255, 0))
+        fnt = ImageFont.truetype("arial.ttf", 30)
+        fnt2 = ImageFont.truetype("arial.ttf", 27)
+        d = ImageDraw.Draw(txt)
+        y = 270
+        count = 1
+        for num in result:
+            if str(num[3]) != "None":
+                # id, name race, date, Машина, привод, покрытие, резина, время
+                count += 1
+                mpi = mpinfo(message, num[1])
+                d.text((85, y), "№{} {}".format(num[1], mpi[1]), font=fnt2, fill=(0, 0, 0, 256))
+                d.text((325, y), "{} {}".format(mpi[2], mpi[3]), font=fnt, fill=(0, 0, 0, 256))
+                # 590 , y
+                usr = get_usr_info(num[2])
+                d.text((590, y-10), "{}\n{}".format(usr[0], usr[1]), font=fnt, fill=(0, 0, 0, 256))
+                if len(num[4]) > 15:
+                    count_c = 0
+                    str_ncar = ""
+                    for st in num[4]:
+                         count_c += 1
+                         str_ncar += str(st)
+                         if count_c == 19:
+                             str_ncar += '\n'
+
+                    d.text((880, y), "{}".format(str_ncar), font=fnt, fill=(0, 0, 0, 256))
+                else:
+                    d.text((880, y), "{}".format(num[4]), font=fnt, fill=(0, 0, 0, 256))
+                cari = carinfo_all(num[2], num[4])
+                d.text((1220, y), "{}".format(cari[7]), font=fnt, fill=(0, 0, 0, 256))
+                d.text((1470, y), "{}".format(mpi[4]), font=fnt, fill=(0, 0, 0, 256))
+                d.text((1685, y), "{}".format(cari[4]), font=fnt2, fill=(0, 0, 0, 256))
+                d.text((1965, y), "{}".format(num[3]), font=fnt, fill=(0, 0, 0, 256))
+                y += 100
+        out = Image.alpha_composite(base, txt)
+        if check == 3:
+            if count > 1:
+                #####
+                #####
+                bot.send_photo(message.chat.id, out, reply_markup=delb)
+                bot.send_message(message.chat.id, "Выше на фото отображены *10 лучших* результатов всех гонщиков.", reply_markup=default_menu_user(), parse_mode="Markdown")
+            else:
+                bot.send_message(message.chat.id, "Простите, результаты гонок не найдены, скорее всего их еще не внесли.", reply_markup=delb)
+                bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
+        elif check == 4:
+            if count > 1:
+                bot.send_photo(message.chat.id, out, reply_markup=delb)
+                bot.send_message(message.chat.id, "Выше на фото отображены *10 лучших* результатов всех гонщиков.", reply_markup=default_menu_admin(), parse_mode="Markdown")
+            else:
+                bot.send_message(message.chat.id, "Простите, результаты гонок не найдены, скорее всего их еще не внесли.", reply_markup=delb)
+                bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
+    else:
+        if check == 3:
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=delb)
+            bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=delb)
+            bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
+
+def get_usr_info(usrid):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+        cursor.execute("SELECT FirstName, LastName FROM Users WHERE TGUserId={}".format(usrid))
+        conn.commit()
+    result = cursor.fetchone()
+    if str(result) == 'None':
+        result = ('NOT FOUND', 'NOT FOUND')
+    return result
+
 
 def show_mp_menu(message):
     with sqlite3.connect("static/database/main.sqlite") as conn:
@@ -165,6 +313,7 @@ def show_mp_menu(message):
         bot.register_next_step_handler(message, reg_user_mp)
     else:
         bot.send_message(message.from_user.id, "Простите, никаких мероприятий не запланировано в ближайшее время", reply_markup=mpbut)
+
 
 def reg_user_mp(message):
     check = check_reg(message.from_user.id)
@@ -240,6 +389,7 @@ def insert_result_sql(message, x, ncar):
 def admins_send_mp_reg(message, x, ncar):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
         cursor.execute("SELECT * FROM Users WHERE Status=4")
         result = cursor.fetchall()
         ###
@@ -345,15 +495,36 @@ def add_mp_member(message, mp_name, mp_date, mp_time, mp_weather, mp_temp):
     insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
 
 def insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member):
-    create_mp = "Мероприятие *'{}'*\nуспешно создано.\n*Дата проведения:* {}\n*Время проведения:* {}\n*Погода:* {}\n*Температура:* {}\n*Макс. кол-во участников:* {}\n".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
+    create_mp = "Мероприятие *'{}'*\nуспешно создано.\n*Дата проведения:* {}\n*Время проведения:* {}\n*Покрытие:* {}\n*Температура:* {}\n*Макс. кол-во участников:* {}\n".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
         cursor.execute("INSERT INTO MP (MpName, MpDate, MpTime, MpWeather, MpTemp, MpMember, MpMemberMax) values ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member, 0))
         conn.commit()
     bot.send_message(message.from_user.id, create_mp, parse_mode="Markdown", reply_markup=default_mp_action())
+    send_all_mp_create(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
     bot.register_next_step_handler(message, menu_mp)
 
+def send_all_mp_create(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+        cursor.execute("SELECT * FROM Users WHERE Status=3 OR Status=4")
+        conn.commit()
+        result = cursor.fetchall()
+    create_mp = "Администратор создал мероприятие *'{}'*\n*Дата проведения:* {}\n*Время проведения:* {}\n*Покрытие:* {}\n*Температура:* {}\n*Макс. кол-во участников:* {}\nВы можете принять участие, регистрируйтесь!".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
+    if str(result) != 'None':
+        if len(result) > 1:
+            for num in result:
+                try:
+                    bot.send_message(num[3], create_mp, parse_mode="Markdown")
+                except:
+                    pass
+        else:
+            try:
+                bot.send_message(result[3], create_mp, parse_mode="Markdown")
+            except:
+                pass
 
 def get_car_user(message):
     with sqlite3.connect("static/database/main.sqlite") as conn:
@@ -373,10 +544,10 @@ def get_car_user(message):
         check = check_reg(message.from_user.id)
         if check == 3:
             bot.send_message(message.from_user.id, "В вашем гараже еще нет автомобилей. \nВоспользуйтесь кнопкой: \n*'Добавить автомобиль'*.", parse_mode="Markdown", reply_markup=mycar)
-            bot.register_next_step_handler(message, next_hop)
+            bot.register_next_step_handler(message, next_car_action)
         elif check == 4:
             bot.send_message(message.from_user.id, "В вашем гараже еще нет автомобилей. \nВоспользуйтесь кнопкой: \n*'Добавить автомобиль'*.", parse_mode="Markdown", reply_markup=mycar)
-            bot.register_next_step_handler(message, next_hop)
+            bot.register_next_step_handler(message, next_car_action)
     else:
         bot.send_message(message.from_user.id, "В вашем гараже сейчас {} автомобиля(ей), для управления выберите автомобиль. \n\nЕсли хотите добавить новый, используйте кнопку: \n*'Добавить автомобиль'*".format(str(count)), parse_mode="Markdown", reply_markup=mycar)
         bot.register_next_step_handler(message, next_car_action)
@@ -420,7 +591,8 @@ def next_car_action(message):
 
 def car_edit_menu(message, namecaraction):
     if message.text == 'Редактировать данные':
-        print("edit")
+        bot.send_message(message.chat.id, "Редактирование данных об автомобиле пока недоступно.", parse_mode="Markdown")
+        get_car_user(message)
     elif message.text == 'Удалить автомобиль':
         ##
         with sqlite3.connect("static/database/main.sqlite") as conn:
