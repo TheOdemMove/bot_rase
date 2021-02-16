@@ -36,7 +36,7 @@ def check_reg(id):
     try:
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
-            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
             cursor.execute("SELECT * FROM Users WHERE TGUserId={}".format(id))
             result = cursor.fetchone()
             conn.commit()
@@ -86,6 +86,9 @@ def work(message):
                 top_race(message)
             elif message.text == 'Общий ТОП-10':
                 all_top_race(message)
+            elif message.text == 'Настройки':
+                usr_setting(message)
+
             else:
                 bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_user())
         elif check == 4:
@@ -100,15 +103,67 @@ def work(message):
                 top_race(message)
             elif message.text == 'Общий ТОП-10':
                 all_top_race(message)
+            elif message.text == 'Настройки':
+                usr_setting(message)
             else:
                 bot.send_message(message.from_user.id, 'Простите, я не понимаю вас, используйте меню.', reply_markup=default_menu_admin())
+
+
+def usr_setting(message):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("SELECT * FROM Users WHERE  TGUserId={}".format(message.from_user.id))
+        result = cursor.fetchone()
+    mycar = telebot.types.ReplyKeyboardMarkup(True, True)
+    mycar.row('Изменить данные о себе')
+    if result[7] == 0:
+        mycar.row('Выключить оповещения')
+    elif result[7] == 1:
+        mycar.row('Включить оповещения')
+    mycar.row('<< Назад')
+    bot.send_message(message.from_user.id, 'Выберите действие, которое хотите сделать.', reply_markup=mycar)
+    bot.register_next_step_handler(message, next_usr_setting)
+
+def next_usr_setting(message):
+    check = check_reg(message.from_user.id)
+    if message.text == 'Изменить данные о себе':
+        bot.send_message(message.from_user.id, 'Это действие еще недоступно, вы вернулись меню настроек.')
+        usr_setting(message)
+    elif message.text == 'Выключить оповещения':
+        ##
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+            cursor.execute("UPDATE Users SET Alerts=1 WHERE TGUserId={}".format(message.from_user.id))
+            conn.commit()
+        bot.send_message(message.from_user.id, 'Вы успешно *отключили* оповещения.\nЭто значит, что вы не будете получать смс о доступных новых мероприятиях.', parse_mode="Markdown")
+        usr_setting(message)
+        ##
+    elif message.text == 'Включить оповещения':
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+            cursor.execute("UPDATE Users SET Alerts=0 WHERE TGUserId={}".format(message.from_user.id))
+            conn.commit()
+        bot.send_message(message.from_user.id, 'Вы успешно *включили* оповещения.\nЭто значит, что вы будете получать смс о доступных новых мероприятиях.', parse_mode="Markdown")
+        usr_setting(message)
+    elif message.text == '<< Назад':
+        if check == 3:
+            bot.send_message(message.from_user.id, 'Вы вернулись в главное меню.', reply_markup=default_menu_user())
+        elif check == 4:
+            bot.send_message(message.from_user.id, 'Вы вернулись в главное меню.', reply_markup=default_menu_admin())
+    else:
+        bot.send_message(message.from_user.id, 'Вы говорите какую-то неправду, попробуйте снова.')
+        usr_setting(message)
+
 
 def top_race(message):
     check = check_reg(message.chat.id)
     delb = telebot.types.ReplyKeyboardRemove()
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL, Privod TEXT, Rezina TEXT)")
         cursor.execute("SELECT * FROM MP_Result WHERE (MpUserId={}) AND (Ustatus=1) ORDER BY Result LIMIT 10".format(message.chat.id))
         conn.commit()
     result = cursor.fetchall()
@@ -140,9 +195,9 @@ def top_race(message):
                 else:
                     d.text((590, y), "{}".format(num[4]), font=fnt, fill=(0, 0, 0, 256))
                 cari = carinfo(message, num[4])
-                d.text((935, y), "{}".format(cari[7]), font=fnt, fill=(0, 0, 0, 256))
+                d.text((935, y), "{}".format(num[6]), font=fnt, fill=(0, 0, 0, 256))
                 d.text((1190, y), "{}".format(mpi[4]), font=fnt, fill=(0, 0, 0, 256))
-                d.text((1410, y), "{}".format(cari[4]), font=fnt2, fill=(0, 0, 0, 256))
+                d.text((1410, y), "{}".format(num[7]), font=fnt2, fill=(0, 0, 0, 256))
                 d.text((1675, y), "{}".format(num[3]), font=fnt, fill=(0, 0, 0, 256))
                 y += 100
         out = Image.alpha_composite(base, txt)
@@ -211,7 +266,7 @@ def all_top_race(message):
     delb = telebot.types.ReplyKeyboardRemove()
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL, Privod TEXT, Rezina TEXT)")
         cursor.execute("SELECT * FROM MP_Result WHERE Ustatus=1 ORDER BY Result LIMIT 10")
         conn.commit()
     result = cursor.fetchall()
@@ -246,9 +301,9 @@ def all_top_race(message):
                 else:
                     d.text((880, y), "{}".format(num[4]), font=fnt, fill=(0, 0, 0, 256))
                 cari = carinfo_all(num[2], num[4])
-                d.text((1220, y), "{}".format(cari[7]), font=fnt, fill=(0, 0, 0, 256))
+                d.text((1220, y), "{}".format(num[6]), font=fnt, fill=(0, 0, 0, 256))
                 d.text((1470, y), "{}".format(mpi[4]), font=fnt, fill=(0, 0, 0, 256))
-                d.text((1685, y), "{}".format(cari[4]), font=fnt2, fill=(0, 0, 0, 256))
+                d.text((1685, y), "{}".format(num[7]), font=fnt2, fill=(0, 0, 0, 256))
                 d.text((1965, y), "{}".format(num[3]), font=fnt, fill=(0, 0, 0, 256))
                 y += 100
         out = Image.alpha_composite(base, txt)
@@ -279,7 +334,7 @@ def all_top_race(message):
 def get_usr_info(usrid):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
         cursor.execute("SELECT FirstName, LastName FROM Users WHERE TGUserId={}".format(usrid))
         conn.commit()
     result = cursor.fetchone()
@@ -381,15 +436,18 @@ def next_car_user_mp(message, x):
 def insert_result_sql(message, x, ncar):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
-        cursor.execute("INSERT INTO MP_Result (MpId, MpUserId, Result, UserCar, Ustatus) values ('{}', '{}', NULL, '{}', 0)".format(x[1], message.from_user.id, ncar))
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("SELECT * FROM Cars WHERE OwnerId={} AND Auto='{}'".format(message.from_user.id, ncar))
+        car_info = cursor.fetchone()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL, Privod TEXT, Rezina TEXT)")
+        cursor.execute("INSERT INTO MP_Result (MpId, MpUserId, Result, UserCar, Ustatus, Privod, Rezina) values ('{}', '{}', NULL, '{}', 0, '{}', '{}')".format(x[1], message.from_user.id, ncar, car_info[7], car_info[4]))
         conn.commit()
     admins_send_mp_reg(message, x, ncar)
 
 def admins_send_mp_reg(message, x, ncar):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
         cursor.execute("SELECT * FROM Users WHERE Status=4")
         result = cursor.fetchall()
         ###
@@ -508,8 +566,8 @@ def insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_me
 def send_all_mp_create(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
-        cursor.execute("SELECT * FROM Users WHERE Status=3 OR Status=4")
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("SELECT * FROM Users WHERE (Status=3 OR Status=4) AND Alerts=0")
         conn.commit()
         result = cursor.fetchall()
     create_mp = "Администратор создал мероприятие *'{}'*\n*Дата проведения:* {}\n*Время проведения:* {}\n*Покрытие:* {}\n*Температура:* {}\n*Макс. кол-во участников:* {}\nВы можете принять участие, регистрируйтесь!".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
@@ -572,6 +630,7 @@ def next_car_action(message):
         else:
             caredit = telebot.types.ReplyKeyboardMarkup(True, True)
             caredit.row("Редактировать данные")
+            caredit.row("Посмотреть ТТХ")
             caredit.row("Удалить автомобиль")
             caredit.row("<< Назад ")
             bot.send_message(message.from_user.id, "Вы выбрали: {}\nИспользуйте меню для выбора действий.".format(namecaraction), reply_markup=caredit)
@@ -584,6 +643,7 @@ def next_car_action(message):
         else:
             caredit = telebot.types.ReplyKeyboardMarkup(True, True)
             caredit.row("Редактировать данные")
+            caredit.row("Посмотреть ТТХ")
             caredit.row("Удалить автомобиль")
             caredit.row("<< Назад ")
             bot.send_message(message.from_user.id, "Вы выбрали: *{}*\nИспользуйте меню для выбора действий.".format(namecaraction), reply_markup=caredit, parse_mode="Markdown")
@@ -592,6 +652,16 @@ def next_car_action(message):
 def car_edit_menu(message, namecaraction):
     if message.text == 'Редактировать данные':
         bot.send_message(message.chat.id, "Редактирование данных об автомобиле пока недоступно.", parse_mode="Markdown")
+        get_car_user(message)
+    elif message.text == 'Посмотреть ТТХ':
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+            cursor.execute("SELECT * FROM Cars WHERE OwnerId={} AND Auto='{}'".format(message.chat.id, namecaraction))
+            conn.commit()
+            car_result = cursor.fetchone()
+        ##
+        bot.send_message(message.chat.id, "----(CAR INFO)----\nНазвание: *{}*\nНомер: *{}*\nРезина: *{}*\nЛош. силы: *{}*\nВес: *{}*\nПривод: *{}*\nТип двигателя: *{}*\nТрансмиссия: *{}*\n".format(car_result[2], car_result[3], car_result[4], car_result[5], car_result[6], car_result[7], car_result[8], car_result[9]), parse_mode="Markdown")
         get_car_user(message)
     elif message.text == 'Удалить автомобиль':
         ##
@@ -721,8 +791,8 @@ def insert_sql_new(chatid, name, surname, mobilephone, datatime):
     try:
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
-            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
-            cursor.execute("INSERT INTO Users (FirstName, LastName, TGUserId, MobilePhone, DateCreated, Status) values ('{}', '{}', '{}', '{}', '{}', '{}')".format(name, surname, chatid, mobilephone, datatime, 2))
+            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+            cursor.execute("INSERT INTO Users (FirstName, LastName, TGUserId, MobilePhone, DateCreated, Status, Alerts) values ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(name, surname, chatid, mobilephone, datatime, 2, 0))
             conn.commit()
     except:
         pass
@@ -765,6 +835,7 @@ def default_menu_admin():
     carbut.row('Мои автомобили')
     carbut.row('Мой ТОП-10')
     carbut.row('Общий ТОП-10')
+    carbut.row('Настройки')
     return carbut
 
 def default_menu_user():
@@ -773,6 +844,7 @@ def default_menu_user():
     carbut.row('Мои автомобили')
     carbut.row('Мой ТОП-10')
     carbut.row('Общий ТОП-10')
+    carbut.row('Настройки')
     return carbut
 
 def default_menu_admin_action():
@@ -810,7 +882,7 @@ def testov(message):
 def get_usr():
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
         cursor.execute("SELECT * FROM Users WHERE Status=2")
         result = cursor.fetchall()
         conn.commit()
@@ -916,7 +988,7 @@ def inlin(call_b):
 def update_sql_reg(y, x):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
         if y == 1:
             cursor.execute("UPDATE Users SET Status=3 WHERE TGUserId={}".format(x[3]))
         elif y == 2:
