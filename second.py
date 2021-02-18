@@ -116,6 +116,7 @@ def usr_setting(message):
         cursor.execute("SELECT * FROM Users WHERE  TGUserId={}".format(message.from_user.id))
         result = cursor.fetchone()
     mycar = telebot.types.ReplyKeyboardMarkup(True, True)
+    mycar.row('Личная информация')
     mycar.row('Изменить данные о себе')
     if result[7] == 0:
         mycar.row('Выключить оповещения')
@@ -128,8 +129,16 @@ def usr_setting(message):
 def next_usr_setting(message):
     check = check_reg(message.from_user.id)
     if message.text == 'Изменить данные о себе':
-        bot.send_message(message.from_user.id, 'Это действие еще недоступно, вы вернулись меню настроек.')
-        usr_setting(message)
+        #####
+        change_info = telebot.types.ReplyKeyboardMarkup(True, True)
+        change_info.row('Имя')
+        change_info.row('Фамилия')
+        change_info.row('Номер телефона')
+        change_info.row('<< Назад')
+        #####
+        bot.send_message(message.from_user.id, 'Выберите какие данные хотите изменить.', reply_markup=change_info)
+        bot.register_next_step_handler(message, next_change_info)
+        #usr_setting(message)
     elif message.text == 'Выключить оповещения':
         ##
         with sqlite3.connect("static/database/main.sqlite") as conn:
@@ -140,6 +149,23 @@ def next_usr_setting(message):
         bot.send_message(message.from_user.id, 'Вы успешно *отключили* оповещения.\nЭто значит, что вы не будете получать смс о доступных новых мероприятиях.', parse_mode="Markdown")
         usr_setting(message)
         ##
+    elif message.text == 'Личная информация':
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+            cursor.execute("SELECT * FROM Users WHERE TGUserId={}".format(message.from_user.id))
+            conn.commit()
+        result_usr = cursor.fetchone()
+        if result_usr[7] == 1:
+            alerts = 'Выключены'
+        elif result_usr[7] == 0:
+            alerts = 'Включены'
+        if result_usr[6] == 3:
+            status_usr = 'Пользователь'
+        elif result_usr[6] == 4:
+            status_usr = 'Администратор'
+        bot.send_message(message.from_user.id, '-----(Личная информация)-----\nИмя: *{}*\nФамилия: *{}*\nМобильный: *{}*\nДата регистрации: *{}*\nСтатус: *{}*\nОповещения: *{}*'.format(result_usr[1], result_usr[2], result_usr[4], result_usr[5], status_usr, alerts), parse_mode="Markdown")
+        usr_setting(message)
     elif message.text == 'Включить оповещения':
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
@@ -157,6 +183,52 @@ def next_usr_setting(message):
         bot.send_message(message.from_user.id, 'Вы говорите какую-то неправду, попробуйте снова.')
         usr_setting(message)
 
+
+
+def next_change_info(message):
+    but = telebot.types.ReplyKeyboardRemove()
+    if message.text == 'Имя':
+        bot.send_message(message.from_user.id, 'Укажите пожалуйста новое имя: ', reply_markup=but)
+        bot.register_next_step_handler(message, change_name_usr)
+        ####
+    elif message.text == 'Фамилия':
+        bot.send_message(message.from_user.id, 'Укажите пожалуйста новое фамилию: ', reply_markup=but)
+        bot.register_next_step_handler(message, change_surname_usr)
+    elif message.text == 'Номер телефона':
+        bot.send_message(message.from_user.id, 'Укажите пожалуйста новый номер телефона: ', reply_markup=but)
+        bot.register_next_step_handler(message, change_mobile_usr)
+    elif message.text == '<< Назад':
+        usr_setting(message)
+
+def change_name_usr(message):
+    newname = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("UPDATE Users SET FirstName='{}' WHERE TGUserId={}".format(newname, message.from_user.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Вы успешно изменили имя на: *{}* '.format(newname), parse_mode="Markdown")
+    usr_setting(message)
+
+def change_surname_usr(message):
+    newsurname = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("UPDATE Users SET LastName='{}' WHERE TGUserId={}".format(newsurname, message.from_user.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Вы успешно изменили фамилию на: *{}* '.format(newsurname), parse_mode="Markdown")
+    usr_setting(message)
+
+def change_mobile_usr(message):
+    newmobile = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("UPDATE Users SET MobilePhone='{}' WHERE TGUserId={}".format(newmobile, message.from_user.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Вы успешно изменили мобильный номер на: *{}* '.format(newmobile), parse_mode="Markdown")
+    usr_setting(message)
 
 def top_race(message):
     check = check_reg(message.chat.id)
@@ -651,8 +723,19 @@ def next_car_action(message):
 
 def car_edit_menu(message, namecaraction):
     if message.text == 'Редактировать данные':
-        bot.send_message(message.chat.id, "Редактирование данных об автомобиле пока недоступно.", parse_mode="Markdown")
-        get_car_user(message)
+        caredit_usr = telebot.types.ReplyKeyboardMarkup(True, True)
+        caredit_usr.row('Название и модель')
+        caredit_usr.row('Номерной знак')
+        caredit_usr.row('Название резины')
+        caredit_usr.row('Лошадиные силы')
+        caredit_usr.row('Вес')
+        caredit_usr.row('Привод')
+        caredit_usr.row('Тип двигателя')
+        caredit_usr.row('Трансмиссия')
+        caredit_usr.row('<< Назад')
+        bot.send_message(message.chat.id, "Пожалуйста, используйте меню для выбора даных, которые вы хотите отредактировать.", parse_mode="Markdown", reply_markup=caredit_usr)
+        bot.register_next_step_handler(message, next_action_edits_car, namecaraction)
+        #get_car_user(message)
     elif message.text == 'Посмотреть ТТХ':
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
@@ -680,6 +763,135 @@ def car_edit_menu(message, namecaraction):
         get_car_user(message)
 ### блок общения для регистрации
 #####
+
+
+
+def next_action_edits_car(message, namecaraction):
+    caredit_usr = telebot.types.ReplyKeyboardRemove()
+    if message.text == 'Название и модель':
+        bot.send_message(message.chat.id, "Пожалуйста, укажите новое название и модель авто:", reply_markup=caredit_usr)
+        bot.register_next_step_handler(message, change_name_car, namecaraction)
+    elif message.text == 'Номерной знак':
+        bot.send_message(message.chat.id, "Пожалуйста, укажите новый номерной знак:", reply_markup=caredit_usr)
+        bot.register_next_step_handler(message, change_reg_car, namecaraction)
+    elif message.text == 'Название резины':
+        bot.send_message(message.chat.id, "Пожалуйста, укажите новое название резины:", reply_markup=caredit_usr)
+        bot.register_next_step_handler(message, change_tyres_car, namecaraction)
+    elif message.text == 'Лошадиные силы':
+        bot.send_message(message.chat.id, "Пожалуйста, укажите новое значение лошадиных сил (числом):", reply_markup=caredit_usr)
+        bot.register_next_step_handler(message, change_hp_car, namecaraction)
+    elif message.text == 'Вес':
+        bot.send_message(message.chat.id, "Пожалуйста, укажите новое значение веса авто (числом):", reply_markup=caredit_usr)
+        bot.register_next_step_handler(message, change_weight_car, namecaraction)
+    elif message.text == 'Привод':
+        tranv = telebot.types.ReplyKeyboardMarkup(True, True)
+        tranv.row('Полный')
+        tranv.row('Передний')
+        tranv.row('Задний')
+        bot.send_message(message.chat.id, "Пожалуйста, укажите привод авто:", reply_markup=tranv)
+        bot.register_next_step_handler(message, change_engine_car, namecaraction)
+    elif message.text == 'Тип двигателя':
+        tranv = telebot.types.ReplyKeyboardMarkup(True, True)
+        tranv.row('Бензиновый')
+        tranv.row('Дизельный')
+        tranv.row('Электро')
+        bot.send_message(message.chat.id, "Пожалуйста, укажите тип двигателя:", reply_markup=tranv)
+        bot.register_next_step_handler(message, change_drive_car, namecaraction)
+    elif message.text == 'Трансмиссия':
+        tranv = telebot.types.ReplyKeyboardMarkup(True, True)
+        tranv.row('Автомат')
+        tranv.row('Механика')
+        tranv.row('Робот')
+        bot.send_message(message.chat.id, "Пожалуйста, укажите тип трансмисии:", reply_markup=tranv)
+        bot.register_next_step_handler(message, change_trans_car, namecaraction)
+    elif message.text == '<< Назад':
+        get_car_user(message)
+
+
+def change_name_car(message, namecaraction):
+    newcarname = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET Auto='{}' WHERE Auto='{}' AND OwnerId={}".format(newcarname, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Название автомобиля было изменено на: *{}*'.format(newcarname), parse_mode="Markdown")
+    get_car_user(message)
+
+
+def change_reg_car(message, namecaraction):
+    newreg = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET RegPlate='{}' WHERE Auto='{}' AND OwnerId={}".format(newreg, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Номерной знак автомобиля был изменен на: *{}*'.format(newreg), parse_mode="Markdown")
+    get_car_user(message)
+
+
+def change_tyres_car(message, namecaraction):
+    newtyres = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET Tyres='{}' WHERE Auto='{}' AND OwnerId={}".format(newtyres, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Название резины было изменено на: *{}*'.format(newtyres), parse_mode="Markdown")
+    get_car_user(message)
+
+
+def change_hp_car(message, namecaraction):
+    newhp = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET HP={} WHERE Auto='{}' AND OwnerId={}".format(newhp, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Количество лошадиных сил было изменено на: *{}*'.format(newhp), parse_mode="Markdown")
+    get_car_user(message)
+
+def change_weight_car(message, namecaraction):
+    newweight = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET Weight={} WHERE Auto='{}' AND OwnerId={}".format(newweight, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Вес авто был изменён на: *{}*'.format(newweight), parse_mode="Markdown")
+    get_car_user(message)
+
+def change_engine_car(message, namecaraction):
+    newengine = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET EngineType='{}' WHERE Auto='{}' AND OwnerId={}".format(newengine, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Тип привода был изменён на: *{}*'.format(newengine), parse_mode="Markdown")
+    get_car_user(message)
+
+def change_drive_car(message, namecaraction):
+    newdriveunit = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET DriveUnit='{}' WHERE Auto='{}' AND OwnerId={}".format(newdriveunit, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Тип двигателя был изменён на: *{}*'.format(newdriveunit), parse_mode="Markdown")
+    get_car_user(message)
+
+def change_trans_car(message, namecaraction):
+    newtrans = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+        cursor.execute("UPDATE Cars SET TransmissionType='{}' WHERE Auto='{}' AND OwnerId={}".format(newtrans, namecaraction, message.chat.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Тип трансмиссии был изменён на: *{}*'.format(newtrans), parse_mode="Markdown")
+    get_car_user(message)
+
+
 def get_name(message):
     datatime = now.strftime("%d-%m-%Y %H:%M")
     chatid = message.from_user.id
