@@ -2,9 +2,7 @@ import telebot
 from telebot import types
 import datetime
 import sqlite3
-
-import urllib
-from io import BytesIO
+import re
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -323,7 +321,7 @@ def carinfo_all(chid, carname):
 def mpinfo(message, id):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
         cursor.execute("SELECT * FROM MP WHERE Id={}".format(id))
         conn.commit()
         mp_info = cursor.fetchone()
@@ -418,7 +416,7 @@ def get_usr_info(usrid):
 def show_mp_menu(message):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
         cursor.execute("SELECT * FROM MP")
         result = cursor.fetchall()
         conn.commit()
@@ -483,10 +481,38 @@ def car_user_mp(message, x):
 
 
 def next_car_user_mp(message, x):
-    check = check_reg(message.from_user.id)
     ncar = message.text
-
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Cars WHERE OwnerId={} AND Auto='{}'".format(message.from_user.id, ncar))
+        n_tyres = cursor.fetchone()
+        conn.commit()
+    mytyres = telebot.types.ReplyKeyboardMarkup(True, True)
+    mytyres.row('Да')
+    mytyres.row('Нет')
+    bot.send_message(message.from_user.id, "Скажите, на вашем авто осталась прежняя резина?\nНазвание: *{}*".format(n_tyres[4]), parse_mode="Markdown", reply_markup=mytyres)
+    bot.register_next_step_handler(message, prefinish_car_user_mp, x, ncar)
     ####
+
+def prefinish_car_user_mp(message, x, ncar):
+    if message.text == 'Да':
+        finish_car_user_mp(message, x, ncar)
+    elif message.text == 'Нет':
+        deltyr = telebot.types.ReplyKeyboardRemove()
+        bot.send_message(message.from_user.id, "Укажите новое название вашей резины: ", reply_markup=deltyr)
+        bot.register_next_step_handler(message, up_tyres, x, ncar)
+
+def up_tyres(message, x, ncar):
+    newtyres = message.text
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE Cars SET Tyres='{}' WHERE OwnerId={} AND Auto='{}'".format(newtyres, message.from_user.id, ncar))
+        conn.commit()
+    finish_car_user_mp(message, x, ncar)
+
+
+def finish_car_user_mp(message, x, ncar):
+    check = check_reg(message.from_user.id)
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM MP_Result WHERE (MpId={}) AND (MpUserId={})".format(x[1], message.from_user.id))
@@ -555,7 +581,7 @@ def menu_mp(message):
     elif message.text == 'Список мероприятий':
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
-            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
             cursor.execute("SELECT * FROM MP")
             result = cursor.fetchall()
             conn.commit()
@@ -569,10 +595,10 @@ def menu_mp(message):
                 for num in result:
                     count2 += 1
                     if count2 > count:
-                        mpbut.row(' ID: {} | Name: {}\n Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
+                        mpbut.row(' ID: {} | Name: {} | Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
             else:
                 for num in result:
-                    mpbut.row(' ID: {} | Name: {}\n Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
+                    mpbut.row(' ID: {} | Name: {} | Date: {} | Time: {}'.format(num[0], num[1], num[2], num[3]))
             mpbut.row('<< Назад')
             bot.send_message(message.from_user.id,"Здесь отображены крайние 10 мероприятий, для добавления результатов гонок выберите мероприятие.", reply_markup=mpbut)
             bot.register_next_step_handler(message, view_mp)
@@ -592,8 +618,51 @@ def view_mp(message):
     else:
         txt = message.text
         x = txt.split(" ")
-        bot.send_message(message.from_user.id, 'Окей, ты выбрал вот это: \n{}'.format(message.text), reply_markup=default_mp_action())
-    bot.register_next_step_handler(message, menu_mp)
+        if len(x) >= 11:
+            #print(x)
+            with sqlite3.connect("static/database/main.sqlite") as conn:
+                cursor = conn.cursor()
+                cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+                cursor.execute("SELECT * FROM MP WHERE Id={} AND MpName='{}' AND MpDate='{}'".format(x[1], x[4], x[7]))
+                checkmp = cursor.fetchone()
+                conn.commit()
+            if checkmp != None:
+                delmp = telebot.types.ReplyKeyboardMarkup(True, True)
+                delmp.row('Подробная информация')
+                delmp.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+                delmp.row('Редактировать информацию')
+                delmp.row('Завершить мероприятие')
+                delmp.row('<< Назад')
+                bot.send_message(message.from_user.id, 'Воспользуйтесь меню для выбора действия.', reply_markup=delmp)
+                bot.register_next_step_handler(message, action_mp, checkmp)
+        else:
+            bot.send_message(message.from_user.id, 'Такое мероприятие не найдено, возможно его не существует.', reply_markup=default_mp_action())
+            bot.register_next_step_handler(message, menu_mp)
+
+
+def action_mp(message, checkmp):
+    mm = telebot.types.ReplyKeyboardMarkup(True, True)
+    mm.row('Подробная информация')
+    mm.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+    mm.row('Редактировать информацию')
+    mm.row('Оповестить о результатах')
+    mm.row('<< Назад')
+    if message.text == 'Подробная информация':
+        bot.send_message(message.from_user.id, '(----Подробная информация----)\nID: *{}*\nНазвание: *{}*\nДата: *{}*\nВремя: *{}*\nПокрытие: *{}*\nТемпература: *{}*\nМакс. кол-во участников: *{}*\nКол-во участников: *{}*\n'.format(checkmp[0], checkmp[1], checkmp[2], checkmp[3], checkmp[4], checkmp[5], checkmp[6], checkmp[7]), reply_markup=mm, parse_mode="Markdown")
+        bot.register_next_step_handler(message, action_mp, checkmp)
+    elif message.text == 'ВНЕСТИ РЕЗУЛЬТАТЫ':
+        pass
+    elif message.text == 'Редактировать информацию':
+        pass
+    elif message.text == 'Оповестить о результатах':
+        pass
+    elif message.text == '<< Назад':
+        bot.send_message(message.from_user.id, 'Вы вернулись назад.', reply_markup=default_mp_action())
+        bot.register_next_step_handler(message, menu_mp)
+    else:
+        bot.send_message(message.from_user.id, 'Не понимаю о чем вы, видимо ошиблись.', reply_markup=default_mp_action())
+        bot.register_next_step_handler(message, menu_mp)
+
 
 def add_mp(message):
     mp_name = message.text
@@ -602,13 +671,25 @@ def add_mp(message):
 
 def add_mp_date(message, mp_name):
     mp_date = message.text
-    bot.send_message(message.from_user.id, "Укажите время проведения\n(например - 15:00): ")
-    bot.register_next_step_handler(message, add_mp_time, mp_name, mp_date)
+    x = re.search("^[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]$", mp_date)
+    if x:
+        bot.send_message(message.from_user.id, "Укажите время проведения\n(например - 15:00): ")
+        bot.register_next_step_handler(message, add_mp_time, mp_name, mp_date)
+    else:
+        bot.send_message(message.from_user.id, "Вы указали дату в неверном формате.\nПример форматов:\n*21.09.2021*\n*21.11.2021*\n*09.09.2021*\n\nУкажите правильный формат: ", parse_mode="Markdown")
+        bot.register_next_step_handler(message, add_mp_date, mp_name)
+
 
 def add_mp_time(message, mp_name, mp_date):
     mp_time = message.text
-    bot.send_message(message.from_user.id, "Укажите погодные условия: ")
-    bot.register_next_step_handler(message, add_mp_weather, mp_name, mp_date, mp_time)
+    x = re.search("^[0-9][0-9]:[0-9][0-9]$", mp_time)
+    if x:
+        bot.send_message(message.from_user.id, "Укажите погодные условия: ")
+        bot.register_next_step_handler(message, add_mp_weather, mp_name, mp_date, mp_time)
+    else:
+        bot.send_message(message.from_user.id, "Вы указали время в неверном формате.\nПример форматов:\n*09:00*\n*09:11*\n*10:09*\n\nУкажите правильный формат: ", parse_mode="Markdown")
+        bot.register_next_step_handler(message, add_mp_time, mp_name, mp_date)
+
 
 def add_mp_weather(message, mp_name, mp_date, mp_time):
     mp_weather = message.text
@@ -628,8 +709,8 @@ def insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_me
     create_mp = "Мероприятие *'{}'*\nуспешно создано.\n*Дата проведения:* {}\n*Время проведения:* {}\n*Покрытие:* {}\n*Температура:* {}\n*Макс. кол-во участников:* {}\n".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
-        cursor.execute("INSERT INTO MP (MpName, MpDate, MpTime, MpWeather, MpTemp, MpMember, MpMemberMax) values ('{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member, 0))
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+        cursor.execute("INSERT INTO MP (MpName, MpDate, MpTime, MpWeather, MpTemp, MpMember, MpMemberMax, Status) values ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member, 0, 0))
         conn.commit()
     bot.send_message(message.from_user.id, create_mp, parse_mode="Markdown", reply_markup=default_mp_action())
     send_all_mp_create(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
@@ -1106,96 +1187,155 @@ def get_usr():
 def inlin(call_b):
     x = call_b.message.text.split(" ")
     if call_b.data == '1':
-        bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
-        bot.send_message(call_b.message.chat.id, "(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на регистрацию была *ОДОБРЕНА*.".format(x[6], x[9],  x[3]), parse_mode="Markdown")
-        try:
-            update_sql_reg(1, x)
-        except:
-            pass
-
-        try:
-            bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *одобрена* администратором.", parse_mode="Markdown")
-        except:
-            pass
-    elif call_b.data == '2':
-        bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
-        bot.send_message(call_b.message.chat.id, "(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на регистрацию была *ОТКЛОНЕНА*.".format(x[6], x[9],  x[3]), parse_mode="Markdown")
-        try:
-            update_sql_reg(2, x)
-        except:
-            pass
-
-        try:
-            bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *отклонена* администратором.", parse_mode="Markdown")
-        except:
-            pass
-
-    elif call_b.data == '3':
-        ######
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
-            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
-            cursor.execute("SELECT MpMember, MpMemberMax FROM MP WHERE Id={}".format(x[14]))
-            result = cursor.fetchone()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+            cursor.execute("SELECT Status FROM Users WHERE TGUserId={}".format(x[3]))
+            user_status = cursor.fetchone()
             conn.commit()
-        if result[1] < result[0]:
+        ####
+        if user_status == None or user_status[0] == 1:
             bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
-            bot.send_message(call_b.message.chat.id,"(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОДОБРЕНА*.".format(x[8], x[11], x[5]), parse_mode="Markdown")
-            #######
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *отклонена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 3 or user_status[0] == 4:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *одобрена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 2:
+        ######
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на регистрацию была *ОДОБРЕНА*.".format(x[6], x[9],  x[3]), parse_mode="Markdown")
             try:
+                update_sql_reg(1, x)
+            except:
+                pass
+
+            try:
+                bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *одобрена* администратором.", parse_mode="Markdown")
+            except:
+                pass
+    elif call_b.data == '2':
+
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+            cursor.execute("SELECT Status FROM Users WHERE TGUserId={}".format(x[3]))
+            user_status = cursor.fetchone()
+            conn.commit()
+        ####
+        if user_status == None or user_status[0] == 1:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *отклонена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 3 or user_status[0] == 4:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *одобрена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 2:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на регистрацию была *ОТКЛОНЕНА*.".format(x[6], x[9],  x[3]), parse_mode="Markdown")
+            try:
+                update_sql_reg(2, x)
+            except:
+                pass
+
+            try:
+                bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *отклонена* администратором.", parse_mode="Markdown")
+            except:
+                pass
+
+    elif call_b.data == '3':
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+            cursor.execute("SELECT UStatus FROM MP_Result WHERE (MpId={}) AND (MpUserId={})".format(x[14], x[5]))
+            user_status = cursor.fetchone()
+            conn.commit()
+        ####
+        if user_status == None:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *отклонена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 1:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *одобрена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 0:
+            ######
+            with sqlite3.connect("static/database/main.sqlite") as conn:
+                cursor = conn.cursor()
+                cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+                cursor.execute("SELECT MpMember, MpMemberMax FROM MP WHERE Id={}".format(x[14]))
+                result = cursor.fetchone()
+                conn.commit()
+            if result[1] < result[0]:
+                bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+                bot.send_message(call_b.message.chat.id,"(ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОДОБРЕНА*.".format(x[8], x[11], x[5]), parse_mode="Markdown")
+                #######
+                try:
+                    with sqlite3.connect("static/database/main.sqlite") as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+                        cursor.execute("UPDATE MP_Result SET UStatus=1 WHERE (MpId={}) AND (MpUserId={})".format(x[14], x[5]))
+                        #
+                        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+                        mmax = int(result[1]) + 1
+                        cursor.execute("Update MP SET MpMemberMax={} WHERE Id={}".format(mmax, x[14]))
+                        conn.commit()
+                except:
+                    pass
+                ########
+                try:
+                    bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*одобрена* администратором.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
+                except:
+                    pass
+            else:
+                # если все места заняты
+                bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+                bot.send_message(call_b.message.chat.id,"(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.\nПричина: *Нет мест*".format(x[8],x[11],x[5]), parse_mode="Markdown")
+                ####
                 with sqlite3.connect("static/database/main.sqlite") as conn:
                     cursor = conn.cursor()
                     cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
-                    cursor.execute("UPDATE MP_Result SET UStatus=1 WHERE (MpId={}) AND (MpUserId={})".format(x[14], x[5]))
-                    #
-                    cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL)")
-                    mmax = int(result[1]) + 1
-                    cursor.execute("Update MP SET MpMemberMax={} WHERE Id={}".format(mmax, x[14]))
+                    cursor.execute("SELECT * FROM MP_Result WHERE (UStatus=0) AND MpId={}".format(x[14]))
+                    kick = cursor.fetchall()
+                    cursor.execute("DELETE FROM MP_Result WHERE (UStatus=0) AND MpId={}".format(x[14]))
                     conn.commit()
-            except:
-                pass
-            ########
-            try:
-                bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*одобрена* администратором.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
-            except:
-                pass
-        else:
-            # если все места заняты
-            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
-            bot.send_message(call_b.message.chat.id,"(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.\nПричина: *Нет мест*".format(x[8],x[11],x[5]), parse_mode="Markdown")
-            ####
-            with sqlite3.connect("static/database/main.sqlite") as conn:
-                cursor = conn.cursor()
-                cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
-                cursor.execute("SELECT * FROM MP_Result WHERE (UStatus=0) AND MpId={}".format(x[14]))
-                kick = cursor.fetchall()
-                cursor.execute("DELETE FROM MP_Result WHERE (UStatus=0) AND MpId={}".format(x[14]))
-                conn.commit()
-            for nim in kick:
-                try:
-                    bot.send_message(nim[2], "Здравствуйте, к сожалению все места на гонку: \n*№{} {}*Время проведения: *{} {}*\n*закончились*, регистрируйтесь на другую.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
-                except:
-                    pass
-            #####
+                for nim in kick:
+                    try:
+                        bot.send_message(nim[2], "Здравствуйте, к сожалению все места на гонку: \n*№{} {}*Время проведения: *{} {}*\n*закончились*, регистрируйтесь на другую.".format(x[14], x[16], x[19], x[23]), parse_mode="Markdown")
+                    except:
+                        pass
+                #####
 
     elif call_b.data == '4':
-        bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
-        bot.send_message(call_b.message.chat.id, "(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.".format(x[8], x[11], x[5]), parse_mode="Markdown")
-        try:
-            ##
-            with sqlite3.connect("static/database/main.sqlite") as conn:
-                cursor = conn.cursor()
-                cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
-                cursor.execute("DELETE FROM MP_Result WHERE (MpId={}) AND (MpUserId={})".format(x[14],x[5]))
-                conn.commit()
-            ##
-        except:
-            pass
+        ####
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+            cursor.execute("SELECT UStatus FROM MP_Result WHERE (MpId={}) AND (MpUserId={})".format(x[14], x[5]))
+            user_status = cursor.fetchone()
+            conn.commit()
+        ####
+        if user_status == None:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *отклонена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 1:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "*(Х)* Данная заявка уже *обработана* и *одобрена* другим администратором.", parse_mode="Markdown", reply_markup=default_menu_admin())
+        elif user_status[0] == 0:
+            bot.delete_message(call_b.message.chat.id, call_b.message.message_id)
+            bot.send_message(call_b.message.chat.id, "(NOT ACCEPT) Заявка пользователя *{} {}* \n(TGuId: {}) на гонку была *ОТКЛОНЕНА*.".format(x[8], x[11], x[5]), parse_mode="Markdown")
+            try:
+                ##
+                with sqlite3.connect("static/database/main.sqlite") as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+                    cursor.execute("DELETE FROM MP_Result WHERE (MpId={}) AND (MpUserId={})".format(x[14],x[5]))
+                    conn.commit()
+                ##
+            except:
+                pass
 
-        try:
-            bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*отклонена* администратором.".format(x[14], x[16], x[19], x[23]),parse_mode="Markdown")
-        except:
-            pass
+            try:
+                bot.send_message(x[5], "Здравствуйте, ваша заявка регистрации на гонку: \n*№{} {}*Время проведения: *{} {}*\n*отклонена* администратором.".format(x[14], x[16], x[19], x[23]),parse_mode="Markdown")
+            except:
+                pass
 
 def update_sql_reg(y, x):
     with sqlite3.connect("static/database/main.sqlite") as conn:
