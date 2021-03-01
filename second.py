@@ -631,7 +631,7 @@ def view_mp(message):
                 delmp.row('Подробная информация')
                 delmp.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
                 delmp.row('Редактировать информацию')
-                delmp.row('Завершить мероприятие')
+                delmp.row('Оповестить о результатах')
                 delmp.row('<< Назад')
                 bot.send_message(message.from_user.id, 'Воспользуйтесь меню для выбора действия.', reply_markup=delmp)
                 bot.register_next_step_handler(message, action_mp, checkmp)
@@ -651,17 +651,259 @@ def action_mp(message, checkmp):
         bot.send_message(message.from_user.id, '(----Подробная информация----)\nID: *{}*\nНазвание: *{}*\nДата: *{}*\nВремя: *{}*\nПокрытие: *{}*\nТемпература: *{}*\nМакс. кол-во участников: *{}*\nКол-во участников: *{}*\n'.format(checkmp[0], checkmp[1], checkmp[2], checkmp[3], checkmp[4], checkmp[5], checkmp[6], checkmp[7]), reply_markup=mm, parse_mode="Markdown")
         bot.register_next_step_handler(message, action_mp, checkmp)
     elif message.text == 'ВНЕСТИ РЕЗУЛЬТАТЫ':
-        pass
+        insert_result(message, checkmp)
     elif message.text == 'Редактировать информацию':
-        pass
+        edit_mp(message, checkmp)
     elif message.text == 'Оповестить о результатах':
-        pass
+        alert_mp(message, checkmp)
     elif message.text == '<< Назад':
         bot.send_message(message.from_user.id, 'Вы вернулись назад.', reply_markup=default_mp_action())
         bot.register_next_step_handler(message, menu_mp)
     else:
         bot.send_message(message.from_user.id, 'Не понимаю о чем вы, видимо ошиблись.', reply_markup=default_mp_action())
         bot.register_next_step_handler(message, menu_mp)
+
+
+def insert_result(message, checkmp):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("SELECT * FROM MP_Result WHERE MpId={} AND Ustatus=1".format(checkmp[0]))
+        conn.commit()
+        users_insert = cursor.fetchall()
+    if len(users_insert) == 1:
+        pass
+    elif len(users_insert) > 1:
+        mm = telebot.types.ReplyKeyboardMarkup(True, True)
+        for num in users_insert:
+            info = getnameusr(num)
+            mm.row('{} | {} {} | {}'.format(num[2], info[1], info[2], num[4]))
+        mm.row('<< Назад')
+        bot.send_message(message.from_user.id, 'Для внесения результатов гонки, выберите участника.', reply_markup=mm)
+        bot.register_next_step_handler(message, result_race, checkmp)
+    else:
+        mm = telebot.types.ReplyKeyboardMarkup(True, True)
+        mm.row('Подробная информация')
+        mm.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+        mm.row('Редактировать информацию')
+        mm.row('Оповестить о результатах')
+        mm.row('<< Назад')
+        bot.send_message(message.from_user.id, 'На это мероприятие нет зарегистрированных участников. ', reply_markup=mm)
+        bot.register_next_step_handler(message, action_mp, checkmp)
+
+def result_race(message, checkmp):
+    if message.text == '<< Назад':
+        mm = telebot.types.ReplyKeyboardMarkup(True, True)
+        mm.row('Подробная информация')
+        mm.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+        mm.row('Редактировать информацию')
+        mm.row('Оповестить о результатах')
+        mm.row('<< Назад')
+        bot.send_message(message.from_user.id, 'Вы вернулись в меню выбора действий. ', reply_markup=mm)
+        bot.register_next_step_handler(message, action_mp, checkmp)
+    else:
+        x = message.text.split(" | ")
+        mm = telebot.types.ReplyKeyboardRemove()
+        bot.send_message(message.from_user.id, 'Гонщик: *{}*\nАвто: *{}*\nУкажите значение результа заезда в формате - 0:00,000.\nПример: *1:23,220* или *0:01,000*'.format(x[1], x[2]), reply_markup=mm, parse_mode="Markdown")
+        bot.register_next_step_handler(message, next_result_race, checkmp, x)
+
+
+def next_result_race(message, checkmp, x):
+    a = re.search("^[0-9]:[0-9][0-9],[0-9][0-9][0-9]$", message.text)
+    b = re.search("^[0-9][0-9]:[0-9][0-9],[0-9][0-9][0-9]$", message.text)
+    if a or b:
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+            cursor.execute("UPDATE MP_Result SET Result='{}' WHERE MpId={} AND Ustatus=1 AND MpUserId={}".format(message.text, checkmp[0], x[0]))
+            conn.commit()
+        bot.send_message(message.from_user.id, "Результат - *{}* для *{} | {}* был успешно записан.".format(message.text, x[1], x[2]), parse_mode="Markdown")
+        insert_result(message, checkmp)
+    else:
+        bot.send_message(message.from_user.id, "Вы указали неверное значение, пожалуйста укажите в формате *0:00,000* или *00:00,000*\nВведите значение: ", parse_mode="Markdown")
+        bot.register_next_step_handler(message, next_result_race, checkmp, x)
+
+
+def getnameusr(num):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("SELECT * FROM Users WHERE (Status=3 OR Status=4) AND TGUserId={}".format(num[2]))
+        conn.commit()
+        result = cursor.fetchone()
+    return result
+
+
+def edit_mp(message, checkmp):
+    mm = telebot.types.ReplyKeyboardMarkup(True, True)
+    mm.row('Название')
+    mm.row('Дата проведения')
+    mm.row('Время проведения')
+    mm.row('Покрытие')
+    mm.row('Температура')
+    mm.row('Максимальное кол-во участников')
+    mm.row('<< Назад')
+    bot.send_message(message.from_user.id, 'Пожалуйста, выберите поле которое хотите отредактировать. ', reply_markup=mm)
+    bot.register_next_step_handler(message, edit_mp_action, checkmp)
+
+def edit_mp_action(message, checkmp):
+    delut = telebot.types.ReplyKeyboardRemove()
+    if message.text == 'Название':
+        bot.send_message(message.from_user.id, 'Укажите новое название мероприятия: ')
+        bot.register_next_step_handler(message, name_mp, checkmp)
+    elif message.text == 'Дата проведения':
+        bot.send_message(message.from_user.id, 'Укажите новую дату проведения мероприятия: ')
+        bot.register_next_step_handler(message, date_mp, checkmp)
+    elif message.text == 'Время проведения':
+        bot.send_message(message.from_user.id, 'Укажите новое время проведения мероприятия: ')
+        bot.register_next_step_handler(message, time_mp, checkmp)
+    elif message.text == 'Покрытие':
+        bot.send_message(message.from_user.id, 'Укажите новое покрытие трассы (погодные условия): ')
+        bot.register_next_step_handler(message, weather_mp, checkmp)
+    elif message.text == 'Температура':
+        bot.send_message(message.from_user.id, 'Укажите новую температуру воздуха: ')
+        bot.register_next_step_handler(message, temp_mp, checkmp)
+    elif message.text == 'Максимальное кол-во участников':
+        bot.send_message(message.from_user.id, 'Укажите новое число участников: ')
+        bot.register_next_step_handler(message, member_mp, checkmp)
+    elif message.text == '<< Назад':
+        delmp = telebot.types.ReplyKeyboardMarkup(True, True)
+        delmp.row('Подробная информация')
+        delmp.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+        delmp.row('Редактировать информацию')
+        delmp.row('Оповестить о результатах')
+        delmp.row('<< Назад')
+        bot.send_message(message.from_user.id, 'Воспользуйтесь меню для выбора действия.', reply_markup=delmp)
+        bot.register_next_step_handler(message, action_mp, checkmp)
+
+
+def alert_mp(message, checkmp):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
+        cursor.execute("SELECT * FROM MP_Result WHERE MpId={} AND Ustatus=1".format(checkmp[0]))
+        conn.commit()
+        users_alert = cursor.fetchall()
+    count_a = 0
+    if len(users_alert) > 1:
+        for num in users_alert:
+            if num[3] != None:
+                try:
+                    count_a += 1
+                    bot.send_message(num[2], "Мероприятие: №{} {} завершено. \n(*{} {}*)\n\nВаши результаты\nАвто: *{}*\nРезина: *{}*\nПривод: *{}*\nВремя (результат): *{}*".format(checkmp[0], checkmp[1], checkmp[2], checkmp[3], num[4], num[7], num[6], num[3]), parse_mode="Markdown")
+                except:
+                    pass
+        ####
+        mm = telebot.types.ReplyKeyboardMarkup(True, True)
+        mm.row('Подробная информация')
+        mm.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+        mm.row('Редактировать информацию')
+        mm.row('Оповестить о результатах')
+        mm.row('<< Назад')
+        bot.send_message(message.from_user.id, 'Было оповещено *{}* участников.\nВоспользуйтесь меню для выбора действия.'.format(count_a), reply_markup=mm, parse_mode="Markdown")
+        bot.register_next_step_handler(message, action_mp, checkmp)
+        ####
+    elif len(users_alert) == 1:
+        if users_alert[3] != None:
+            ###
+            bot.send_message(users_alert[2],"Мероприятие: №{} {} завершено. \n(*{} {}*)\n\nВаши результаты\nАвто: *{}*\nРезина: *{}*\nПривод: *{}*\nВремя (результат): *{}*".format(checkmp[0], checkmp[1], checkmp[2], checkmp[3], users_alert[4], users_alert[7], users_alert[6], users_alert[3]), parse_mode="Markdown")
+            ###
+            mm = telebot.types.ReplyKeyboardMarkup(True, True)
+            mm.row('Подробная информация')
+            mm.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+            mm.row('Редактировать информацию')
+            mm.row('Оповестить о результатах')
+            mm.row('<< Назад')
+            bot.send_message(message.from_user.id, 'Был оповещен *1* участник.\nВоспользуйтесь меню для выбора действия.', reply_markup=mm, parse_mode="Markdown")
+            bot.register_next_step_handler(message, action_mp, checkmp)
+    else:
+        mm = telebot.types.ReplyKeyboardMarkup(True, True)
+        mm.row('Подробная информация')
+        mm.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
+        mm.row('Редактировать информацию')
+        mm.row('Оповестить о результатах')
+        mm.row('<< Назад')
+        bot.send_message(message.from_user.id, 'Видимо возникла какая-то ошибка, возможно еще не внесены результаты.\nВоспользуйтесь меню для выбора действия.', reply_markup=mm)
+        bot.register_next_step_handler(message, action_mp, checkmp)
+
+
+def name_mp(message, checkmp):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+        cursor.execute("UPDATE MP SET MpName='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Название мероприятия было изменено на: *{}*'.format(message.text), parse_mode="Markdown")
+    edit_mp(message, checkmp)
+
+def date_mp(message, checkmp):
+    mp_date = message.text
+    x = re.search("^[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]$", mp_date)
+    if x:
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+            cursor.execute("UPDATE MP SET MpDate='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
+            conn.commit()
+        bot.send_message(message.from_user.id, 'Дата проведения мероприятия была изменено на: *{}*'.format(message.text), parse_mode="Markdown")
+        edit_mp(message, checkmp)
+    else:
+        bot.send_message(message.from_user.id, "Вы указали дату в неверном формате.\nПример форматов:\n*21.09.2021*\n*21.11.2021*\n*09.09.2021*\n\nУкажите правильный формат: ", parse_mode="Markdown")
+        bot.register_next_step_handler(message, date_mp, checkmp)
+
+
+def time_mp(message, checkmp):
+    mp_time = message.text
+    x = re.search("^[0-9][0-9]:[0-9][0-9]$", mp_time)
+    if x:
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+            cursor.execute("UPDATE MP SET MpTime='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
+            conn.commit()
+        bot.send_message(message.from_user.id, 'Время проведения мероприятия было изменено на: *{}*'.format(message.text), parse_mode="Markdown")
+        edit_mp(message, checkmp)
+    else:
+        bot.send_message(message.from_user.id, "Вы указали время в неверном формате.\nПример форматов:\n*09:00*\n*09:11*\n*10:09*\n\nУкажите правильный формат: ", parse_mode="Markdown")
+        bot.register_next_step_handler(message, time_mp, checkmp)
+
+
+def weather_mp(message, checkmp):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+        cursor.execute("UPDATE MP SET MpWeather='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Покрытие (погодные условия) было изменено на: *{}*'.format(message.text), parse_mode="Markdown")
+    edit_mp(message, checkmp)
+
+
+def temp_mp(message, checkmp):
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+        cursor.execute("UPDATE MP SET MpTemp='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Температура была изменена на: *{}*'.format(message.text), parse_mode="Markdown")
+    edit_mp(message, checkmp)
+
+
+def member_mp(message, checkmp):
+    member = message.text
+    x = re.search("^[0-9]$", member)
+    y = re.search("^[0-9][0-9]$", member)
+    z = re.search("^[0-9][0-9][0-9]$", member)
+    if x or y or z:
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
+            cursor.execute("UPDATE MP SET MpMember='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
+            conn.commit()
+        bot.send_message(message.from_user.id, 'Максимальное кол-во участников было изменено на: *{}*'.format(message.text), parse_mode="Markdown")
+        edit_mp(message, checkmp)
+    else:
+        bot.send_message(message.from_user.id, "Количество участников может варироватся от 0 до 999 участников.\n\nУкажите правильный формат: ", parse_mode="Markdown")
+        bot.register_next_step_handler(message, member_mp, checkmp)
 
 
 def add_mp(message):
@@ -703,7 +945,14 @@ def add_mp_temp(message, mp_name, mp_date, mp_time, mp_weather):
 
 def add_mp_member(message, mp_name, mp_date, mp_time, mp_weather, mp_temp):
     mp_member = message.text
-    insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
+    x = re.search("^[0-9]$", mp_member)
+    y = re.search("^[0-9][0-9]$", mp_member)
+    z = re.search("^[0-9][0-9][0-9]$", mp_member)
+    if x or y or z:
+        insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
+    else:
+        bot.send_message(message.from_user.id, "Используйте число для указания количества участников (от 0 до 999): ")
+        bot.register_next_step_handler(message, add_mp_member, mp_name, mp_date, mp_time, mp_weather, mp_temp)
 
 def insert_sql_mp(message, mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member):
     create_mp = "Мероприятие *'{}'*\nуспешно создано.\n*Дата проведения:* {}\n*Время проведения:* {}\n*Покрытие:* {}\n*Температура:* {}\n*Макс. кол-во участников:* {}\n".format(mp_name, mp_date, mp_time, mp_weather, mp_temp, mp_member)
