@@ -831,9 +831,9 @@ def name_mp(message, checkmp):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
-        cursor.execute("UPDATE MP SET MpName='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
+        cursor.execute("UPDATE MP SET MpName='{}' WHERE Id={} AND MpName='{}'".format(message.text.replace(' ', '_'), checkmp[0], checkmp[1]))
         conn.commit()
-    bot.send_message(message.from_user.id, 'Название мероприятия было изменено на: *{}*'.format(message.text), parse_mode="Markdown")
+    bot.send_message(message.from_user.id, 'Название мероприятия было изменено на: *{}*'.format(message.text.replace(' ', '_')), parse_mode="Markdown")
     edit_mp(message, checkmp)
 
 def date_mp(message, checkmp):
@@ -907,7 +907,7 @@ def member_mp(message, checkmp):
 
 
 def add_mp(message):
-    mp_name = message.text
+    mp_name = message.text.replace(' ', '_')
     bot.send_message(message.from_user.id, "Укажите дату проведения\n(пример 29.01.2021): ")
     bot.register_next_step_handler(message, add_mp_date, mp_name)
 
