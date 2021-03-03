@@ -26,7 +26,7 @@ def phone(message):
         elif check == 4:
             bot.send_message(message.from_user.id, "[You Admin] Используйте меню для выбора функций. ", reply_markup=default_menu_admin())
     else:
-        bot.send_message(message.chat.id, "Я в групповых чатах не разговариваю, стесняюсь.\nПишите в личные сообщения, там *пошалим*.", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "Иди нахуй, в лс пиши.")
 
 
 
@@ -220,20 +220,13 @@ def change_surname_usr(message):
 
 def change_mobile_usr(message):
     newmobile = message.text
-    x = re.search("^375[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", newmobile)
-    y = re.search("^380[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", newmobile)
-    z = re.search("^7[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", newmobile)
-    if x or y or z:
-        with sqlite3.connect("static/database/main.sqlite") as conn:
-            cursor = conn.cursor()
-            cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
-            cursor.execute("UPDATE Users SET MobilePhone='{}' WHERE TGUserId={}".format(newmobile, message.from_user.id))
-            conn.commit()
-        bot.send_message(message.from_user.id, 'Вы успешно изменили мобильный номер на: *{}* '.format(newmobile), parse_mode="Markdown")
-        usr_setting(message)
-    else:
-        bot.send_message(message.from_user.id, 'Неверный формат номера телефона, используйте *375000000000, 380000000000, 7000000000*\nВведите значение: ', parse_mode="Markdown")
-        bot.register_next_step_handler(message, change_mobile_usr)
+    with sqlite3.connect("static/database/main.sqlite") as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS Users (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, FirstName TEXT NOT NULL, LastName TEXT NOT NULL, TGUserId INTEGER NOT NULL, MobilePhone NUMERIC NOT NULL, DateCreated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, Status INTEGER NOT NULL DEFAULT 2, Alerts INTEGER NOT NULL DEFAULT 0)")
+        cursor.execute("UPDATE Users SET MobilePhone='{}' WHERE TGUserId={}".format(newmobile, message.from_user.id))
+        conn.commit()
+    bot.send_message(message.from_user.id, 'Вы успешно изменили мобильный номер на: *{}* '.format(newmobile), parse_mode="Markdown")
+    usr_setting(message)
 
 def top_race(message):
     check = check_reg(message.chat.id)
@@ -247,8 +240,8 @@ def top_race(message):
     if len(result) != 0:
         base = Image.open("static/img/pps2.png").convert("RGBA")
         txt = Image.new("RGBA", base.size, (255, 255, 255, 0))
-        fnt = ImageFont.truetype("/home/admin21/bot_rase/static/arial.ttf", 30)
-        fnt2 = ImageFont.truetype("/home/admin21/bot_rase/static/arial.ttf", 27)
+        fnt = ImageFont.truetype("arial.ttf", 30)
+        fnt2 = ImageFont.truetype("arial.ttf", 27)
         d = ImageDraw.Draw(txt)
         y = 270
         count = 1
@@ -309,7 +302,7 @@ def carinfo(message, carname):
         cursor.execute("SELECT * FROM Cars WHERE OwnerId={} AND Auto='{}'".format(message.from_user.id, carname))
         conn.commit()
         car_info = cursor.fetchone()
-    if car_info == None:
+    if str(car_info) == 'None':
         car_info = ('NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND')
     return car_info
 
@@ -320,7 +313,7 @@ def carinfo_all(chid, carname):
         cursor.execute("SELECT * FROM Cars WHERE OwnerId={} AND Auto='{}'".format(chid, carname))
         conn.commit()
         car_info = cursor.fetchone()
-    if car_info == None:
+    if str(car_info) == 'None':
         car_info = ('NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND', 'NOT\nFOUND')
     return car_info
 
@@ -350,8 +343,8 @@ def all_top_race(message):
     if len(result) != 0:
         base = Image.open("static/img/top10all.png").convert("RGBA")
         txt = Image.new("RGBA", base.size, (255, 255, 255, 0))
-        fnt = ImageFont.truetype("/home/admin21/bot_rase/static/arial.ttf", 30)
-        fnt2 = ImageFont.truetype("/home/admin21/bot_rase/static/arial.ttf", 27)
+        fnt = ImageFont.truetype("arial.ttf", 30)
+        fnt2 = ImageFont.truetype("arial.ttf", 27)
         d = ImageDraw.Draw(txt)
         y = 270
         count = 1
@@ -402,10 +395,10 @@ def all_top_race(message):
                 bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
     else:
         if check == 3:
-            bot.send_message(message.chat.id, "Видимо еще не проводилось гонок или администратор не внёс результаты.", reply_markup=delb)
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=delb)
             bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_user())
         elif check == 4:
-            bot.send_message(message.chat.id, "Видимо еще не проводилось гонок или администратор не внёс результаты.", reply_markup=delb)
+            bot.send_message(message.chat.id, "Видимо вы еще не участвовали в гонках, или администратор не внёс результаты.", reply_markup=delb)
             bot.send_message(message.chat.id, "Вы вернулись в главное меню.", reply_markup=default_menu_admin())
 
 def get_usr_info(usrid):
@@ -444,11 +437,7 @@ def show_mp_menu(message):
         bot.send_message(message.from_user.id, "Здесь отображены крайние 10 мероприятий, для регистрации на них, выберите мероприятие.", reply_markup=mpbut)
         bot.register_next_step_handler(message, reg_user_mp)
     else:
-        check = check_reg(message.from_user.id)
-        if check == 3:
-            bot.send_message(message.from_user.id, "Простите, никаких мероприятий не запланировано в ближайшее время.", reply_markup=default_menu_user())
-        elif check == 4: 
-            bot.send_message(message.from_user.id, "Простите, никаких мероприятий не запланировано в ближайшее время.", reply_markup=default_menu_admin())
+        bot.send_message(message.from_user.id, "Простите, никаких мероприятий не запланировано в ближайшее время", reply_markup=mpbut)
 
 
 def reg_user_mp(message):
@@ -626,7 +615,6 @@ def menu_mp(message):
 def view_mp(message):
     if message.text == '<< Назад':
         bot.send_message(message.from_user.id, 'Вы вернулись в меню управления мероприятиями.', reply_markup=default_mp_action())
-        bot.register_next_step_handler(message, menu_mp)
     else:
         txt = message.text
         x = txt.split(" ")
@@ -683,9 +671,9 @@ def insert_result(message, checkmp):
         cursor.execute("SELECT * FROM MP_Result WHERE MpId={} AND Ustatus=1".format(checkmp[0]))
         conn.commit()
         users_insert = cursor.fetchall()
-    # if len(users_insert) == 1:
-    #     pass
-    if len(users_insert) >= 1:
+    if len(users_insert) == 1:
+        pass
+    elif len(users_insert) > 1:
         mm = telebot.types.ReplyKeyboardMarkup(True, True)
         for num in users_insert:
             info = getnameusr(num)
@@ -816,9 +804,9 @@ def alert_mp(message, checkmp):
         bot.register_next_step_handler(message, action_mp, checkmp)
         ####
     elif len(users_alert) == 1:
-        if users_alert[0][3] != None:
+        if users_alert[3] != None:
             ###
-            bot.send_message(users_alert[0][2],"Мероприятие: №{} {} завершено. \n(*{} {}*)\n\nВаши результаты\nАвто: *{}*\nРезина: *{}*\nПривод: *{}*\nВремя (результат): *{}*".format(checkmp[0], checkmp[1], checkmp[2], checkmp[3], users_alert[0][4], users_alert[0][7], users_alert[0][6], users_alert[0][3]), parse_mode="Markdown")
+            bot.send_message(users_alert[2],"Мероприятие: №{} {} завершено. \n(*{} {}*)\n\nВаши результаты\nАвто: *{}*\nРезина: *{}*\nПривод: *{}*\nВремя (результат): *{}*".format(checkmp[0], checkmp[1], checkmp[2], checkmp[3], users_alert[4], users_alert[7], users_alert[6], users_alert[3]), parse_mode="Markdown")
             ###
             mm = telebot.types.ReplyKeyboardMarkup(True, True)
             mm.row('Подробная информация')
@@ -827,15 +815,6 @@ def alert_mp(message, checkmp):
             mm.row('Оповестить о результатах')
             mm.row('<< Назад')
             bot.send_message(message.from_user.id, 'Был оповещен *1* участник.\nВоспользуйтесь меню для выбора действия.', reply_markup=mm, parse_mode="Markdown")
-            bot.register_next_step_handler(message, action_mp, checkmp)
-        else:
-            mm = telebot.types.ReplyKeyboardMarkup(True, True)
-            mm.row('Подробная информация')
-            mm.row('ВНЕСТИ РЕЗУЛЬТАТЫ')
-            mm.row('Редактировать информацию')
-            mm.row('Оповестить о результатах')
-            mm.row('<< Назад')
-            bot.send_message(message.from_user.id, 'Видимо возникла какая-то ошибка, возможно еще не внесены результаты.\nВоспользуйтесь меню для выбора действия.', reply_markup=mm)
             bot.register_next_step_handler(message, action_mp, checkmp)
     else:
         mm = telebot.types.ReplyKeyboardMarkup(True, True)
@@ -852,9 +831,9 @@ def name_mp(message, checkmp):
     with sqlite3.connect("static/database/main.sqlite") as conn:
         cursor = conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS MP (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpName TEXT NOT NULL, MpDate TEXT NOT NULL, MpTime TEXT NOT NULL, MpWeather TEXT NOT NULL, MpTemp INTEGER NOT NULL, MpMember INTEGER NOT NULL, MpMemberMax INTEGER NOT NULL, Status INTEGER NOT NULL)")
-        cursor.execute("UPDATE MP SET MpName='{}' WHERE Id={} AND MpName='{}'".format(message.text.replace(' ', '_'), checkmp[0], checkmp[1]))
+        cursor.execute("UPDATE MP SET MpName='{}' WHERE Id={} AND MpName='{}'".format(message.text, checkmp[0], checkmp[1]))
         conn.commit()
-    bot.send_message(message.from_user.id, 'Название мероприятия было изменено на: *{}*'.format(message.text.replace(' ', '_')), parse_mode="Markdown")
+    bot.send_message(message.from_user.id, 'Название мероприятия было изменено на: *{}*'.format(message.text), parse_mode="Markdown")
     edit_mp(message, checkmp)
 
 def date_mp(message, checkmp):
@@ -928,8 +907,7 @@ def member_mp(message, checkmp):
 
 
 def add_mp(message):
-    #mp_name = message.text
-    mp_name = message.text.replace(' ', '_')
+    mp_name = message.text
     bot.send_message(message.from_user.id, "Укажите дату проведения\n(пример 29.01.2021): ")
     bot.register_next_step_handler(message, add_mp_date, mp_name)
 
@@ -1096,10 +1074,7 @@ def car_edit_menu(message, namecaraction):
             conn.commit()
             car_result = cursor.fetchone()
         ##
-        if car_result != None:
-            bot.send_message(message.chat.id, "----(CAR INFO)----\nНазвание: *{}*\nНомер: *{}*\nРезина: *{}*\nЛош. силы: *{}*\nВес: *{}*\nПривод: *{}*\nТип двигателя: *{}*\nТрансмиссия: *{}*\n".format(car_result[2], car_result[3], car_result[4], car_result[5], car_result[6], car_result[7], car_result[8], car_result[9]), parse_mode="Markdown")
-        else:
-            bot.send_message(message.chat.id, "Такого автомобиля не найдено.")
+        bot.send_message(message.chat.id, "----(CAR INFO)----\nНазвание: *{}*\nНомер: *{}*\nРезина: *{}*\nЛош. силы: *{}*\nВес: *{}*\nПривод: *{}*\nТип двигателя: *{}*\nТрансмиссия: *{}*\n".format(car_result[2], car_result[3], car_result[4], car_result[5], car_result[6], car_result[7], car_result[8], car_result[9]), parse_mode="Markdown")
         get_car_user(message)
     elif message.text == 'Удалить автомобиль':
         ##
@@ -1259,32 +1234,22 @@ def get_surname(message, datatime, chatid, name):
     keyboard = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
     button_phone = types.KeyboardButton(text="Отправить номер телефона", request_contact=True)
     keyboard.add(button_phone)
-    bot.send_message(message.from_user.id, 'Используйте кнопку что бы ввести свой номер телефона.', reply_markup=keyboard)
+    bot.send_message(message.from_user.id, 'Введите ваш номер телефона: ', reply_markup=keyboard)
     bot.register_next_step_handler(message, get_mobile_phone, datatime, chatid, name, surname)
 
 def get_mobile_phone(message, datatime, chatid, name, surname):
-    if message.contact != None:
+    if message.contact is not None:
         mobilephone = message.contact.phone_number
-        x = re.search("^375[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", mobilephone)
-        a = re.search("^\+375[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", mobilephone)
-        y = re.search("^380[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", mobilephone)
-        b = re.search("^\+380[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", mobilephone)
-        z = re.search("^7[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", mobilephone)
-        c = re.search("^\+7[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]$", mobilephone)
-        if x or y or z or a or b or c:
-            insert_sql_new(chatid, name, surname, mobilephone, datatime)
-            keyboard = types.ReplyKeyboardRemove()
-            admins_send(chatid, name, surname, mobilephone, datatime)
-            try:
-                bot.send_message(message.from_user.id, "Регистрация завершена, ожидайте одобрения вашей заявки администратором.", reply_markup=keyboard)
-            except:
-                pass
-        else:
-            bot.send_message(message.from_user.id, "Неверный формат номера телефона, *используйте кнопку.*", parse_mode="Markdown")
-            bot.register_next_step_handler(message, get_mobile_phone, datatime, chatid, name, surname)
     else:
-        bot.send_message(message.from_user.id, "Неверный формат номера телефона, *используйте кнопку.*", parse_mode="Markdown") 
-        bot.register_next_step_handler(message, get_mobile_phone, datatime, chatid, name, surname)
+        mobilephone = '380000000000'
+    insert_sql_new(chatid, name, surname, mobilephone, datatime)
+    keyboard = types.ReplyKeyboardRemove()
+    admins_send(chatid, name, surname, mobilephone, datatime)
+    try:
+        bot.send_message(message.from_user.id, "Регистрация завершена, ожидайте одобрения вашей заявки администратором.", reply_markup=keyboard)
+    except:
+        pass
+
 ######### the end register
 
 def get_car_name(message, ownerid):
@@ -1494,12 +1459,11 @@ def inlin(call_b):
                 pass
 
             try:
-                bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *одобрена* администратором.", parse_mode="Markdown", reply_markup=default_menu_user())
+                bot.send_message(x[3], "Здравствуйте, ваша заявка на регистрацию *одобрена* администратором.", parse_mode="Markdown")
             except:
-                now = datetime.datetime.now()
-                with open('static/log.txt', 'a') as file:
-                    file.write("[{}] ({}) ERROR ACCEPT REGISTER".format(now.strftime('%d.%m.%Y | %H:%M:%S'),x[3]))
+                pass
     elif call_b.data == '2':
+
         with sqlite3.connect("static/database/main.sqlite") as conn:
             cursor = conn.cursor()
             cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
