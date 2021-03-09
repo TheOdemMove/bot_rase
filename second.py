@@ -27,7 +27,8 @@ def phone(message):
             bot.send_message(message.from_user.id, "[You Admin] Используйте меню для выбора функций. ", reply_markup=default_menu_admin())
     else:
         bot.send_message(message.chat.id, "Я в групповых чатах не разговариваю, стесняюсь.\nПишите в личные сообщения, там *пошалим*.", parse_mode="Markdown")
-
+        ## 1001454102587 chat id
+        #bot.send_message(-1001454102587, "Test")
 
 
 def check_reg(id):
@@ -257,7 +258,7 @@ def top_race(message):
                 # id, name race, date, Машина, привод, покрытие, резина, время
                 count += 1
                 mpi = mpinfo(message, num[1])
-                d.text((85, y), "№{} {}".format(num[1], mpi[1]), font=fnt2, fill=(0, 0, 0, 256))
+                d.text((85, y), "№{}\n{}".format(num[1], mpi[1]), font=fnt2, fill=(0, 0, 0, 256))
                 d.text((325, y), "{} {}".format(mpi[2], mpi[3]), font=fnt, fill=(0, 0, 0, 256))
                 if len(num[4]) > 15:
                     count_c = 0
@@ -729,7 +730,9 @@ def next_result_race(message, checkmp, x):
             cursor.execute("CREATE TABLE IF NOT EXISTS MP_Result (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, MpId INTEGER NOT NULL, MpUserId INTEGER NOT NULL, Result FLOAT NOT NULL, UserCar TEXT NOT NULL, UStatus INTEGER NOT NULL)")
             cursor.execute("UPDATE MP_Result SET Result='{}' WHERE MpId={} AND Ustatus=1 AND MpUserId={}".format(message.text, checkmp[0], x[0]))
             conn.commit()
+        now = datetime.datetime.now()
         bot.send_message(message.from_user.id, "Результат - *{}* для *{} | {}* был успешно записан.".format(message.text, x[1], x[2]), parse_mode="Markdown")
+        bot.send_message(-1001454102587, "Заезд: *{}*\nДата и время: *{} {}*\nУчастник: *{}*\nАвто: *{}*\nРезультат - *{}*".format(checkmp[1], checkmp[2], now.strftime("%H:%M:%S"), x[1], x[2], message.text), parse_mode="Markdown")
         insert_result(message, checkmp)
     else:
         bot.send_message(message.from_user.id, "Вы указали неверное значение, пожалуйста укажите в формате *0:00,000* или *00:00,000*\nВведите значение: ", parse_mode="Markdown")
@@ -1198,13 +1201,20 @@ def change_tyres_car(message, namecaraction):
 
 def change_hp_car(message, namecaraction):
     newhp = message.text
-    with sqlite3.connect("static/database/main.sqlite") as conn:
-        cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
-        cursor.execute("UPDATE Cars SET HP={} WHERE Auto='{}' AND OwnerId={}".format(newhp, namecaraction, message.chat.id))
-        conn.commit()
-    bot.send_message(message.from_user.id, 'Количество лошадиных сил было изменено на: *{}*'.format(newhp), parse_mode="Markdown")
-    get_car_user(message)
+    x = re.search("^[0-9]{1,4}$", newhp)
+    if x:
+        with sqlite3.connect("static/database/main.sqlite") as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS Cars (Id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, OwnerId INTEGER NOT NULL, Auto TEXT NOT NULL, RegPlate TEXT NOT NULL, Tyres TEXT NOT NULL, HP INTEGER NOT NULL, Weight INTEGER NOT NULL, EngineType TEXT NOT NULL, DriveUnit TEXT NOT NULL , TransmissionType TEXT NOT NULL)")
+            cursor.execute("UPDATE Cars SET HP={} WHERE Auto='{}' AND OwnerId={}".format(newhp, namecaraction, message.chat.id))
+            conn.commit()
+        bot.send_message(message.from_user.id, 'Количество лошадиных сил было изменено на: *{}*'.format(newhp), parse_mode="Markdown")
+        get_car_user(message)
+    else:
+        careditusr = telebot.types.ReplyKeyboardRemove()
+        bot.send_message(message.chat.id, "Вы неправильно указали данные, используйте чисельный формат от 1 до 1000.\nУкажите новое значение лошадиных сил (числом):", reply_markup=careditusr)
+        bot.register_next_step_handler(message, change_hp_car, namecaraction)
+
 
 def change_weight_car(message, namecaraction):
     newweight = message.text
@@ -1304,8 +1314,13 @@ def get_car_tyres(message, ownerid, auto, regplate):
 
 def get_car_hp(message, ownerid, auto, regplate, tyres):
     hp = message.text
-    bot.send_message(message.from_user.id, 'Введите вес авто в килогараммах: ')
-    bot.register_next_step_handler(message, get_car_weight, ownerid, auto, regplate, tyres, hp)
+    x = re.search("^[0-9]{1,4}$", hp)
+    if x:
+        bot.send_message(message.from_user.id, 'Введите вес авто в килогараммах: ')
+        bot.register_next_step_handler(message, get_car_weight, ownerid, auto, regplate, tyres, hp)
+    else:
+        bot.send_message(message.from_user.id, 'Вы ошиблись, введите число от 1 до 1000.\nВведите значение: ')
+        bot.register_next_step_handler(message, get_car_hp, ownerid, auto, regplate, tyres)
 
 def get_car_weight(message, ownerid, auto, regplate, tyres, hp):
     weight = message.text
