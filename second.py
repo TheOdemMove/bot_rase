@@ -630,7 +630,7 @@ def view_mp(message):
         bot.register_next_step_handler(message, menu_mp)
     else:
         txt = message.text
-        x = txt.split(" ")
+        x = txt.split(" ") 
         if len(x) >= 11:
             #print(x)
             with sqlite3.connect("static/database/main.sqlite") as conn:
