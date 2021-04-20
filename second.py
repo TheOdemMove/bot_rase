@@ -639,6 +639,7 @@ def view_mp(message):
                 cursor.execute("SELECT * FROM MP WHERE Id={} AND MpName='{}' AND MpDate='{}'".format(x[1], x[4], x[7]))
                 checkmp = cursor.fetchone()
                 conn.commit()
+
             if checkmp != None:
                 delmp = telebot.types.ReplyKeyboardMarkup(True, True)
                 delmp.row('Подробная информация')
