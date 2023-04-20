@@ -29,8 +29,6 @@ def phone(message):
             bot.send_message(message.from_user.id, "[You Admin] Используйте меню для выбора функций. ", reply_markup=default_menu_admin())
     else:
         bot.send_message(message.chat.id, "Я в групповых чатах не разговариваю, стесняюсь.\nПишите в личные сообщения, там *пошалим*.", parse_mode="Markdown")
-        ## 1001454102587 chat id
-        #bot.send_message(-1001454102587, "Test")
 
 
 def check_reg(id):
