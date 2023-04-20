@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 
-bot = telebot.TeleBot('1173276637:AAGcELhOEt6KULo7GWYNohCXWw2YtvwqXUE')
+bot = telebot.TeleBot('xxxxxxx')
 now = datetime.datetime.now()
 
 @bot.message_handler(commands=['start'])
